@@ -81,6 +81,26 @@ final class NotificationManager {
         }
     }
 
+    /// Posts a notification when the sleep timer expires and pauses playback.
+    func postSleepTimerFinished() {
+        let content = UNMutableNotificationContent()
+        content.title = "Sleep Timer Complete"
+        content.body = "All audio and media playback has been paused."
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "sleepTimer-\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                connectionLog.error("Failed to post sleep timer notification: \(error.localizedDescription)")
+            }
+        }
+    }
+
     func reset(for address: String) {
         notifiedBuds.remove("\(address)-left")
         notifiedBuds.remove("\(address)-right")

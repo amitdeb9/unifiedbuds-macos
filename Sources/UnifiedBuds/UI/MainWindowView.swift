@@ -72,6 +72,8 @@ struct MainWindowView: View {
 private struct EarbudsPage: View {
     @EnvironmentObject private var manager: BudsManager
     @EnvironmentObject private var audio: AudioOutput
+    @ObservedObject private var sleepTimer = SleepTimerManager.shared
+    @State private var customSleepMinutes: Int = 45
 
     var body: some View {
         if let device = manager.selected {
@@ -80,6 +82,9 @@ private struct EarbudsPage: View {
                 Section("Battery") { BatteryRow(device: device) }
                 if let buds = audio.device(named: device.name), let mac = audio.builtInDevice {
                     Section("Sound Output") { soundOutput(buds: buds, mac: mac) }
+                }
+                Section("Sleep Timer") {
+                    sleepTimerControls
                 }
                 if device.supportsInEarDetection || device.supportsMultipoint || device.supportsGamingMode || device.supportsFindMyBuds {
                     Section("Features") {
@@ -141,6 +146,44 @@ private struct EarbudsPage: View {
             }
         } else {
             Form { Section { NoDevicesView() } }
+        }
+    }
+
+    @ViewBuilder
+    private var sleepTimerControls: some View {
+        if sleepTimer.isActive {
+            HStack {
+                Label("Pausing in \(sleepTimer.formattedRemaining)", systemImage: "moon.zzz.fill")
+                    .foregroundStyle(.indigo)
+                    .font(.body.weight(.medium))
+                Spacer()
+                Button("Cancel Timer", role: .destructive) {
+                    sleepTimer.cancel()
+                }
+                .controlSize(.small)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    ForEach([10, 20, 30, 60], id: \.self) { mins in
+                        Button("\(mins)m") {
+                            sleepTimer.start(minutes: mins)
+                        }
+                        .controlSize(.small)
+                    }
+                }
+                HStack(spacing: 12) {
+                    Stepper("Custom: \(customSleepMinutes) min", value: $customSleepMinutes, in: 1...360, step: 5)
+                    Button("Start") {
+                        sleepTimer.start(minutes: customSleepMinutes)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                Text("When the timer expires, all audio and video playback on your Mac will pause automatically.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -439,6 +482,8 @@ private struct DevicesPage: View {
 private struct GeneralPage: View {
     @AppStorage("menuBarIconStyle") private var iconStyle = MenuBarIconStyle.appLogo
     @ObservedObject private var prefs = Preferences.shared
+    @ObservedObject private var sleepTimer = SleepTimerManager.shared
+    @State private var customSleepMinutes: Int = 45
 
     var body: some View {
         Form {
@@ -466,6 +511,42 @@ private struct GeneralPage: View {
 
             Section("Startup") {
                 LaunchAtLoginControl(compact: false)
+            }
+
+            Section("Sleep Timer") {
+                if sleepTimer.isActive {
+                    HStack {
+                        Label("Pausing playback in \(sleepTimer.formattedRemaining)", systemImage: "moon.zzz.fill")
+                            .foregroundStyle(.indigo)
+                            .font(.body.weight(.medium))
+                        Spacer()
+                        Button("Cancel Timer", role: .destructive) {
+                            sleepTimer.cancel()
+                        }
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            ForEach([10, 20, 30, 60], id: \.self) { mins in
+                                Button("\(mins)m") {
+                                    sleepTimer.start(minutes: mins)
+                                }
+                                .controlSize(.small)
+                            }
+                        }
+                        HStack(spacing: 12) {
+                            Stepper("Custom: \(customSleepMinutes) min", value: $customSleepMinutes, in: 1...360, step: 5)
+                            Button("Start") {
+                                sleepTimer.start(minutes: customSleepMinutes)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+                        Text("When the timer expires, all audio, music, and browser playback will pause automatically.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Section("Menu Bar Battery") {
@@ -524,9 +605,6 @@ private struct GeneralPage: View {
                 }
             }
 
-            Section("Startup") {
-                LaunchAtLoginControl(compact: false)
-            }
             Section {
                 HStack {
                     Spacer()
@@ -555,6 +633,7 @@ private struct AboutPage: View {
     @State private var copyStatus: String?
     @State private var updateStatus: String?
     @State private var isCheckingUpdates = false
+    @State private var isDownloading = false
 
     private var version: String {
         let info = Bundle.main.infoDictionary
@@ -582,18 +661,23 @@ private struct AboutPage: View {
             }
 
             Section {
-                HStack {
+                HStack(spacing: 12) {
                     Button {
                         checkForUpdates()
                     } label: {
-                        Label(isCheckingUpdates ? "Checking…" : "Check for Updates…", systemImage: "arrow.down.circle")
+                        Label(isDownloading ? "Updating…" : (isCheckingUpdates ? "Checking…" : "Check for Updates…"),
+                              systemImage: isDownloading ? "arrow.triangle.2.circlepath" : "arrow.down.circle")
                     }
-                    .disabled(isCheckingUpdates)
+                    .disabled(isCheckingUpdates || isDownloading)
+
+                    if isCheckingUpdates || isDownloading {
+                        ProgressView().controlSize(.small)
+                    }
 
                     if let updateStatus = updateStatus {
                         Text(updateStatus)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(updateStatus.contains("up to date") ? .green : .secondary)
                     }
                 }
 
@@ -619,7 +703,7 @@ private struct AboutPage: View {
             } header: {
                 Text("Updates & Diagnostics")
             } footer: {
-                Text("Bluetooth debug info includes connected device names, SDP channels, and advertised services—handy for opening a GitHub issue or requesting a new model.")
+                Text("UnifiedBuds checks GitHub releases directly and updates itself in-place without needing Terminal commands.")
             }
 
             Section {
@@ -637,33 +721,109 @@ private struct AboutPage: View {
 
     private func checkForUpdates() {
         isCheckingUpdates = true
-        updateStatus = "Checking GitHub…"
-        let url = URL(string: "https://api.github.com/repos/amitdeb9/unifiedbuds-macos/releases/latest")!
+        updateStatus = "Checking GitHub for updates…"
+        let url = URL(string: "https://api.github.com/repos/amitdeb9/unifiedbuds-macos/releases/latest?t=\(Int(Date().timeIntervalSince1970))")!
         var request = URLRequest(url: url)
         request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
 
         URLSession.shared.dataTask(with: request) { data, _, error in
             DispatchQueue.main.async {
                 self.isCheckingUpdates = false
-                if let error = error {
-                    self.updateStatus = "Failed: \(error.localizedDescription)"
-                    return
-                }
-                guard let data = data,
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let tagName = json["tag_name"] as? String else {
-                    self.updateStatus = "Could not check latest release"
-                    return
-                }
                 let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.3.0"
-                let latest = tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
-                if latest.compare(current, options: .numeric) == .orderedDescending {
-                    self.updateStatus = "New version \(tagName) available!"
-                    if let htmlUrl = json["html_url"] as? String, let target = URL(string: htmlUrl) {
-                        NSWorkspace.shared.open(target)
+
+                var latestTag: String?
+                var downloadURL: URL?
+
+                if let data = data,
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let tagName = json["tag_name"] as? String {
+                    latestTag = tagName
+                    if let assets = json["assets"] as? [[String: Any]] {
+                        for asset in assets {
+                            if let name = asset["name"] as? String, name.hasSuffix(".zip"),
+                               let dlStr = asset["browser_download_url"] as? String,
+                               let dlUrl = URL(string: dlStr) {
+                                downloadURL = dlUrl
+                                break
+                            }
+                        }
                     }
+                }
+
+                guard let tagName = latestTag else {
+                    self.updateStatus = "Could not check GitHub releases."
+                    return
+                }
+
+                let cleanLatest = tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+                let isNewer = cleanLatest.compare(current, options: .numeric) == .orderedDescending
+
+                if isNewer {
+                    let zipURL = downloadURL ?? URL(string: "https://github.com/amitdeb9/unifiedbuds-macos/releases/download/\(tagName)/UnifiedBuds.zip")!
+                    self.updateStatus = "New version v\(cleanLatest) found! Starting auto-update…"
+                    self.performAutoUpdate(downloadURL: zipURL, newVersion: cleanLatest)
                 } else {
                     self.updateStatus = "UnifiedBuds is up to date (v\(current))"
+                }
+            }
+        }.resume()
+    }
+
+    private func performAutoUpdate(downloadURL: URL, newVersion: String) {
+        isDownloading = true
+        updateStatus = "Downloading v\(newVersion)…"
+
+        URLSession.shared.downloadTask(with: downloadURL) { localURL, _, error in
+            DispatchQueue.main.async {
+                guard let localURL = localURL, error == nil else {
+                    self.isDownloading = false
+                    self.updateStatus = "Download failed: \(error?.localizedDescription ?? "Network error")"
+                    return
+                }
+
+                self.updateStatus = "Installing v\(newVersion) and relaunching…"
+
+                let pid = ProcessInfo.processInfo.processIdentifier
+                let destPath = "/Applications/UnifiedBuds.app"
+                let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+
+                do {
+                    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                    let downloadedZip = tempDir.appendingPathComponent("UnifiedBuds.zip")
+                    try FileManager.default.copyItem(at: localURL, to: downloadedZip)
+
+                    let scriptContent = """
+                    #!/bin/bash
+                    while kill -0 \(pid) 2>/dev/null; do
+                        sleep 0.2
+                    done
+                    /usr/bin/ditto -x -k "\(downloadedZip.path)" "\(tempDir.path)"
+                    if [ -d "\(tempDir.path)/UnifiedBuds.app" ]; then
+                        rm -rf "\(destPath)"
+                        /usr/bin/ditto "\(tempDir.path)/UnifiedBuds.app" "\(destPath)"
+                        xattr -dr com.apple.quarantine "\(destPath)" 2>/dev/null || true
+                        open "\(destPath)"
+                    fi
+                    rm -rf "\(tempDir.path)"
+                    """
+
+                    let scriptPath = tempDir.appendingPathComponent("install_update.sh")
+                    try scriptContent.write(to: scriptPath, atomically: true, encoding: .utf8)
+
+                    var permissions = try FileManager.default.attributesOfItem(atPath: scriptPath.path)
+                    permissions[.posixPermissions] = 0o755
+                    try FileManager.default.setAttributes(permissions, ofItemAtPath: scriptPath.path)
+
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: "/bin/bash")
+                    process.arguments = [scriptPath.path]
+                    try process.run()
+
+                    NSApplication.shared.terminate(nil)
+                } catch {
+                    self.isDownloading = false
+                    self.updateStatus = "Update failed: \(error.localizedDescription)"
                 }
             }
         }.resume()
