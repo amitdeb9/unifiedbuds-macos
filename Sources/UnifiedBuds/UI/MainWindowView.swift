@@ -64,11 +64,62 @@ private struct EarbudsPage: View {
                 if let buds = audio.device(named: device.name), let mac = audio.builtInDevice {
                     Section("Sound Output") { soundOutput(buds: buds, mac: mac) }
                 }
+                if device.supportsInEarDetection || device.supportsMultipoint || device.supportsGamingMode || device.supportsFindMyBuds {
+                    Section("Features") {
+                        if device.supportsGamingMode {
+                            Toggle("Low-Latency / Gaming Mode", isOn: Binding(
+                                get: { device.gamingModeEnabled },
+                                set: { manager.setGamingMode($0) }
+                            ))
+                        }
+                        if device.supportsInEarDetection {
+                            Toggle("In-Ear Wear Detection", isOn: Binding(
+                                get: { device.inEarDetectionEnabled },
+                                set: { manager.setInEarDetection($0) }
+                            ))
+                        }
+                        if device.supportsMultipoint {
+                            Toggle("Dual-Device Multipoint Connection", isOn: Binding(
+                                get: { device.multipointEnabled },
+                                set: { manager.setMultipoint($0) }
+                            ))
+                        }
+                        if device.supportsFindMyBuds {
+                            HStack {
+                                Text("Find My Buds")
+                                Spacer()
+                                Button {
+                                    manager.ringBud(left: true, start: !device.isRingingLeft)
+                                } label: {
+                                    Label(device.isRingingLeft ? "Stop Left" : "Ring Left",
+                                          systemImage: device.isRingingLeft ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                }
+                                .controlSize(.small)
+                                .tint(device.isRingingLeft ? .red : .accentColor)
+                                Button {
+                                    manager.ringBud(left: false, start: !device.isRingingRight)
+                                } label: {
+                                    Label(device.isRingingRight ? "Stop Right" : "Ring Right",
+                                          systemImage: device.isRingingRight ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                }
+                                .controlSize(.small)
+                                .tint(device.isRingingRight ? .red : .accentColor)
+                            }
+                        }
+                    }
+                }
                 if !device.supportedANCModes.isEmpty {
                     Section("Noise Control") { noiseControl(device) }
                 }
                 if !device.supportedEQPresets.isEmpty {
                     Section("Equalizer") { equalizer(device) }
+                }
+                if let map = device.touchMap, !map.isEmpty {
+                    Section("Touch Controls") {
+                        TouchControls(map: map, collapsible: false) { action, gesture in
+                            manager.setTouchAction(action, forGesture: gesture)
+                        }
+                    }
                 }
             }
         } else {
@@ -77,8 +128,9 @@ private struct EarbudsPage: View {
     }
 
     private func header(_ device: DeviceState) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: "earbuds")
+        let iconName = device.formFactor == .neckband ? "beats.earphones" : "earbuds"
+        return HStack(spacing: 14) {
+            Image(systemName: iconName)
                 .font(.system(size: 30))
                 .foregroundStyle(device.connection == .connected ? Color.accentColor : .secondary)
                 .frame(width: 44)
@@ -173,6 +225,20 @@ private struct EarbudsPage: View {
         if device.eqPreset == .custom, let custom = device.customEQ {
             CustomEQSliders(initial: custom) { manager.setCustomEQ($0) }
                 .disabled(device.connection != .connected)
+
+            Divider().padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Custom EQ Profiles").font(.subheadline.weight(.medium))
+                HStack(spacing: 8) {
+                    ForEach(Preferences.shared.savedEQProfiles) { profile in
+                        Button(profile.name) {
+                            manager.setCustomEQ(profile.eq)
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
         }
     }
 }
@@ -181,13 +247,17 @@ private struct EarbudsPage: View {
 private struct BatteryRow: View {
     let device: DeviceState
 
+    private var budSymbol: String {
+        device.formFactor == .neckband ? "beats.earphones" : "earbuds"
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             if let combined = device.battery.combined, device.battery.left == nil, device.battery.right == nil {
-                cell("Earbuds", symbol: "earbuds", battery: combined, unavailable: false)
+                cell("Earbuds", symbol: budSymbol, battery: combined, unavailable: false)
             } else {
-                cell("Left", symbol: "earbuds", battery: device.battery.left, unavailable: false)
-                cell("Right", symbol: "earbuds", battery: device.battery.right, unavailable: false)
+                cell("Left", symbol: budSymbol, battery: device.battery.left, unavailable: false)
+                cell("Right", symbol: budSymbol, battery: device.battery.right, unavailable: false)
             }
             cell("Case", symbol: "earbuds.case", battery: device.battery.caseBattery,
                  unavailable: !device.reportsCaseBattery)
@@ -344,6 +414,7 @@ private struct DevicesPage: View {
 
 private struct GeneralPage: View {
     @AppStorage("menuBarIconStyle") private var iconStyle = MenuBarIconStyle.appLogo
+    @ObservedObject private var prefs = Preferences.shared
 
     var body: some View {
         Form {
@@ -355,8 +426,9 @@ private struct GeneralPage: View {
                 }
                 .pickerStyle(.segmented)
                 LabeledContent("Preview") {
-                    HStack(spacing: 18) {
+                    HStack(spacing: 14) {
                         preview(.connected, "Normal")
+                        preview(.ancOn, "ANC")
                         preview(.adaptive, "Adaptive")
                         preview(.transparency, "Transparency")
                         preview(.charging, "Charging")
@@ -367,6 +439,67 @@ private struct GeneralPage: View {
             } footer: {
                 Text("The icon follows your earbuds' mode and dims when none are connected.")
             }
+
+            Section("Startup") {
+                LaunchAtLoginControl(compact: false)
+            }
+
+            Section("Menu Bar Battery") {
+                Toggle("Show battery % next to icon", isOn: $prefs.showBatteryInMenuBar)
+                Text("Displays the lowest earbud battery percentage right in the menu bar so you don't need to click to check.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Low-Battery Notifications") {
+                Toggle("Native low battery warnings", isOn: $prefs.lowBatteryNotificationsEnabled)
+                if prefs.lowBatteryNotificationsEnabled {
+                    Picker("Notify when battery drops below", selection: $prefs.lowBatteryThreshold) {
+                        Text("10%").tag(10)
+                        Text("15%").tag(15)
+                        Text("20%").tag(20)
+                        Text("25%").tag(25)
+                    }
+                }
+            }
+
+            Section("Audio Routing & Quality") {
+                Toggle("Auto-switch audio output to earbuds on connect", isOn: $prefs.autoSwitchAudioOutput)
+                Toggle("Prevent mic from switching to Bluetooth HFP", isOn: $prefs.preventHFPSwitch)
+                Text("Prevents macOS from switching your input microphone to Bluetooth Hands-Free Profile, preserving pristine 48kHz stereo output instead of dropping to 8/16kHz mono voice mode.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Global Keyboard Shortcuts") {
+                Toggle("Enable keyboard shortcuts", isOn: $prefs.globalShortcutsEnabled)
+                LabeledContent("Cycle ANC (Off → Transparency → ANC → Adaptive)") {
+                    Text("⌘⇧A").font(.system(.body, design: .monospaced)).foregroundStyle(.secondary)
+                }
+                LabeledContent("Toggle Low-Latency / Gaming Mode") {
+                    Text("⌘⇧G").font(.system(.body, design: .monospaced)).foregroundStyle(.secondary)
+                }
+                Text("Shortcuts work system-wide across any app or game.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Per-App ANC Automation") {
+                Toggle("Automate ANC based on active application", isOn: $prefs.perAppANCEnabled)
+                if prefs.perAppANCEnabled {
+                    ForEach(prefs.perAppANCRules) { rule in
+                        HStack {
+                            Text(rule.appName)
+                            Spacer()
+                            Text(rule.mode.rawValue).foregroundStyle(.secondary)
+                        }
+                    }
+                    Text("Automatically engages ANC for music (Spotify, Apple Music) and Transparency for video calls (Zoom, Teams, FaceTime).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Startup") {
                 LaunchAtLoginControl(compact: false)
             }
@@ -393,12 +526,16 @@ private struct GeneralPage: View {
 // MARK: About
 
 private struct AboutPage: View {
+    @EnvironmentObject private var manager: BudsManager
     private static let repo = URL(string: "https://github.com/amitdeb9/unifiedbuds-macos")!
+    @State private var copyStatus: String?
+    @State private var updateStatus: String?
+    @State private var isCheckingUpdates = false
 
     private var version: String {
         let info = Bundle.main.infoDictionary
-        let short = info?["CFBundleShortVersionString"] as? String ?? "?"
-        let build = info?["CFBundleVersion"] as? String ?? "?"
+        let short = info?["CFBundleShortVersionString"] as? String ?? "0.3.0"
+        let build = info?["CFBundleVersion"] as? String ?? "3"
         return "Version \(short) (\(build))"
     }
 
@@ -411,7 +548,7 @@ private struct AboutPage: View {
                         .frame(width: 128, height: 128)
                     Text("UnifiedBuds").font(.largeTitle.weight(.semibold))
                     Text(version).foregroundStyle(.secondary)
-                    Text("Battery, noise control, EQ and touch controls for QCY, Nothing / CMF, realme, OnePlus and boAt earbuds.")
+                    Text("Battery, noise control, EQ and touch controls for QCY, Nothing / CMF, realme, OnePlus, boAt, Soundcore, Samsung Galaxy Buds, Sony, and Xiaomi earbuds.")
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -419,16 +556,92 @@ private struct AboutPage: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
             }
+
+            Section {
+                HStack {
+                    Button {
+                        checkForUpdates()
+                    } label: {
+                        Label(isCheckingUpdates ? "Checking…" : "Check for Updates…", systemImage: "arrow.down.circle")
+                    }
+                    .disabled(isCheckingUpdates)
+
+                    if let updateStatus = updateStatus {
+                        Text(updateStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                HStack {
+                    Button {
+                        let text = manager.exportBluetoothDebugInfo()
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                        copyStatus = "Copied to clipboard!"
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            copyStatus = nil
+                        }
+                    } label: {
+                        Label("Copy Bluetooth Debug Info", systemImage: "doc.on.clipboard")
+                    }
+
+                    if let copyStatus = copyStatus {
+                        Text(copyStatus)
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                }
+            } header: {
+                Text("Updates & Diagnostics")
+            } footer: {
+                Text("Bluetooth debug info includes connected device names, SDP channels, and advertised services—handy for opening a GitHub issue or requesting a new model.")
+            }
+
             Section {
                 Link(destination: Self.repo) {
                     Label("Source code on GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
                 }
-                Link(destination: Self.repo.appendingPathComponent("releases/latest")) {
-                    Label("Check for updates", systemImage: "arrow.down.circle")
+                Link(destination: Self.repo.appendingPathComponent("issues/new/choose")) {
+                    Label("Request Model Support / Report Bug", systemImage: "bubble.left.and.exclamationmark.bubble.right")
                 }
             } footer: {
                 Text("Open source under the MIT License.")
             }
         }
+    }
+
+    private func checkForUpdates() {
+        isCheckingUpdates = true
+        updateStatus = "Checking GitHub…"
+        let url = URL(string: "https://api.github.com/repos/amitdeb9/unifiedbuds-macos/releases/latest")!
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            DispatchQueue.main.async {
+                self.isCheckingUpdates = false
+                if let error = error {
+                    self.updateStatus = "Failed: \(error.localizedDescription)"
+                    return
+                }
+                guard let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let tagName = json["tag_name"] as? String else {
+                    self.updateStatus = "Could not check latest release"
+                    return
+                }
+                let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.3.0"
+                let latest = tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+                if latest.compare(current, options: .numeric) == .orderedDescending {
+                    self.updateStatus = "New version \(tagName) available!"
+                    if let htmlUrl = json["html_url"] as? String, let target = URL(string: htmlUrl) {
+                        NSWorkspace.shared.open(target)
+                    }
+                } else {
+                    self.updateStatus = "UnifiedBuds is up to date (v\(current))"
+                }
+            }
+        }.resume()
     }
 }

@@ -42,6 +42,14 @@ final class RealmeDriver: EarbudDriver {
     init(device: IOBluetoothDevice, name: String, brand: Brand) {
         transport = RFCOMMTransport(device: device, serviceUUIDs: Self.serviceUUIDs, fallbackChannel: 15)
         state = DeviceState(name: name, brand: brand)
+        let lower = name.lowercased()
+        if lower.contains("wireless") || lower.contains("neckband") {
+            state.formFactor = .neckband
+        }
+        state.supportsGamingMode = true
+        state.supportsInEarDetection = true
+        state.supportsMultipoint = true
+        state.supportsFindMyBuds = true
         state.supportedANCModes = [.off, .transparency, .noiseCancellation]
         // Built-in EQ preset ids aren't reported by the buds or documented for
         // realme, so EQ stays hidden until they're mapped per model.
@@ -83,6 +91,31 @@ final class RealmeDriver: EarbudDriver {
     }
 
     func setEQ(_ preset: EQPreset) {}
+
+    func setGamingMode(_ enabled: Bool) {
+        state.gamingModeEnabled = enabled
+        // HeyMelody gaming mode payload: 0x01 = enable, 0x00 = disable
+        send(0x0406, payload: [0x01, enabled ? 0x01 : 0x00])
+    }
+
+    func setInEarDetection(_ enabled: Bool) {
+        state.inEarDetectionEnabled = enabled
+        send(0x0408, payload: [0x01, enabled ? 0x01 : 0x00])
+    }
+
+    func setMultipoint(_ enabled: Bool) {
+        state.multipointEnabled = enabled
+        send(0x041A, payload: [0x01, enabled ? 0x01 : 0x00])
+    }
+
+    func ringBud(left: Bool, start: Bool) {
+        if left {
+            state.isRingingLeft = start
+        } else {
+            state.isRingingRight = start
+        }
+        send(0x0410, payload: [left ? 0x01 : 0x02, start ? 0x01 : 0x00])
+    }
 
     func requestBattery() {
         send(Command.battery)

@@ -187,9 +187,20 @@ private struct DeviceRow: View {
     let connected: Bool
     let pending: Bool
 
+    private var iconName: String {
+        let lower = device.name.lowercased()
+        if lower.contains("wireless") || lower.contains("neckband") {
+            return "beats.earphones"
+        }
+        if lower.contains("wh-") || lower.contains("space q") || lower.contains("headphones") {
+            return "headphones"
+        }
+        return "earbuds"
+    }
+
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "earbuds")
+            Image(systemName: iconName)
                 .foregroundStyle(connected ? Color.accentColor : .secondary)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
@@ -241,10 +252,10 @@ struct DeviceControls: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 0) {
                 if let combined = device.battery.combined, device.battery.left == nil, device.battery.right == nil {
-                    BatteryCell(label: "Earbuds", symbol: "earbuds", battery: combined)
+                    BatteryCell(label: "Earbuds", symbol: device.formFactor == .neckband ? "beats.earphones" : "earbuds", battery: combined)
                 } else {
-                    BatteryCell(label: "L", symbol: "earbuds", battery: device.battery.left)
-                    BatteryCell(label: "R", symbol: "earbuds", battery: device.battery.right)
+                    BatteryCell(label: "L", symbol: device.formFactor == .neckband ? "beats.earphones" : "earbuds", battery: device.battery.left)
+                    BatteryCell(label: "R", symbol: device.formFactor == .neckband ? "beats.earphones" : "earbuds", battery: device.battery.right)
                 }
                 BatteryCell(label: "Case", symbol: "earbuds.case", battery: device.battery.caseBattery,
                             unavailable: !device.reportsCaseBattery)
@@ -313,7 +324,6 @@ struct DeviceControls: View {
                     }
                 }
             }
-
         }
         .disabled(!enabled)
     }

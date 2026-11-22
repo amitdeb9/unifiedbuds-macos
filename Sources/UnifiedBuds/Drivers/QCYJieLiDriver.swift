@@ -15,15 +15,19 @@ final class QCYJieLiDriver: EarbudDriver {
 
     private enum Opcode {
         static let targetInfo: UInt8 = 0x03
+        static let findDevice: UInt8 = 0x19
         static let advNotify: UInt8 = 0xC2
         static let custom: UInt8 = 0xFF
     }
 
     private enum Setting {
+        static let inEar: UInt8 = 0x06
+        static let gaming: UInt8 = 0x09
         static let anc: UInt8 = 0x17
         static let eq: UInt8 = 0x22
         static let keys: UInt8 = 0x2B
         static let battery: UInt8 = 0x2F
+        static let tonePlay: UInt8 = 0x3D
         static let read: UInt8 = 0xFE
     }
 
@@ -130,6 +134,9 @@ final class QCYJieLiDriver: EarbudDriver {
             .flatMap { try? JSONDecoder().decode(CustomEQ.self, from: $0) } ?? CustomEQ()
         // The N20 never reports the case (0 in every battery reply, nothing over BLE).
         state.reportsCaseBattery = false
+        state.supportsGamingMode = true
+        state.supportsInEarDetection = true
+        state.supportsFindMyBuds = true
         // EQ presets appear once the buds report the factory band layout (see handleEQ).
 
         transport.onOpen = { [weak self] in
@@ -211,6 +218,46 @@ final class QCYJieLiDriver: EarbudDriver {
         setEQ(.custom)
     }
 
+    func setGamingMode(_ enabled: Bool) {
+        state.gamingModeEnabled = enabled
+        send(Opcode.custom, payload: [Setting.gaming, 0x01, enabled ? 0x01 : 0x02])
+    }
+
+    func setInEarDetection(_ enabled: Bool) {
+        state.inEarDetectionEnabled = enabled
+        send(Opcode.custom, payload: [Setting.inEar, 0x01, enabled ? 0x01 : 0x02])
+    }
+
+    func ringBud(left: Bool, start: Bool) {
+        if left {
+            state.isRingingLeft = start
+        } else {
+            state.isRingingRight = start
+        }
+        let sound: UInt8 = start ? 0x01 : 0x00
+        let timeout: [UInt8] = start ? [0x00, 0x3C] : [0x00, 0x00] // 60s ring, or 0s to stop
+        let way: UInt8 = left ? 0x01 : 0x02 // 1 = left, 2 = right
+
+        // Maximize earbud internal hardware volume (Opcode 0x08 = SystemVolume)
+        if start {
+            send(0x08, payload: [0xFF, 0x02, 0x01, 0x10])
+        }
+
+        // JieLi RCSP kJL_FIND_DEVICE opcode 0x19
+        // Send both device-side player (0x01) and app-side player (0x00)
+        send(Opcode.findDevice, payload: [0x01, sound, timeout[0], timeout[1], way, 0x01])
+        send(Opcode.findDevice, payload: [0x01, sound, timeout[0], timeout[1], way, 0x00])
+
+        // QCY vendor settings on opcode 0xFF
+        if start {
+            send(Opcode.custom, payload: [0x05, 0x01, left ? 0x01 : 0x02])
+            send(Opcode.custom, payload: [Setting.tonePlay, 0x01, left ? 0x01 : 0x02])
+        } else {
+            send(Opcode.custom, payload: [0x05, 0x01, 0x00])
+            send(Opcode.custom, payload: [Setting.tonePlay, 0x01, 0x00])
+        }
+    }
+
     /// The `22 <len> <index> <master> <bands>` TLV that writes `curve`.
     private static func eqPayload(for curve: Curve) -> [UInt8] {
         var data: [UInt8] = [curve.index] + le(UInt16(bitPattern: curve.masterGain))
@@ -242,6 +289,8 @@ final class QCYJieLiDriver: EarbudDriver {
         send(Opcode.custom, payload: [Setting.read, 0x01, Setting.anc])
         send(Opcode.custom, payload: [Setting.read, 0x01, Setting.eq])
         send(Opcode.custom, payload: [Setting.read, 0x01, Setting.keys])
+        send(Opcode.custom, payload: [Setting.read, 0x01, Setting.gaming])
+        send(Opcode.custom, payload: [Setting.read, 0x01, Setting.inEar])
         requestBattery()
         guard attempt < 25 else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
@@ -305,6 +354,12 @@ final class QCYJieLiDriver: EarbudDriver {
                 handleSetting(id: id, data: Array(payload[(i + 2)..<(i + 2 + length)]), pushed: pushed)
                 i += 2 + length
             }
+        case Opcode.findDevice where payload.count >= 2:
+            let sound = payload[1]
+            if sound == 0x00 {
+                state.isRingingLeft = false
+                state.isRingingRight = false
+            }
         case Opcode.advNotify where payload.count >= 17:
             // vid, uid, pid (u16 each), chip, EDR address[6], action, then L, R, case.
             handleBattery(Array(payload[14..<17]))
@@ -315,6 +370,10 @@ final class QCYJieLiDriver: EarbudDriver {
 
     private func handleSetting(id: UInt8, data: [UInt8], pushed: Bool) {
         switch id {
+        case Setting.gaming where !data.isEmpty:
+            state.gamingModeEnabled = (data[0] == 0x01)
+        case Setting.inEar where !data.isEmpty:
+            state.inEarDetectionEnabled = (data[0] == 0x01)
         case Setting.anc where data.count >= 2:
             let mode: ANCMode
             switch data[0] {

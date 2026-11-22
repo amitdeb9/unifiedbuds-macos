@@ -6,9 +6,18 @@ enum Brand: String {
     case realme = "realme"
     case oneplus = "OnePlus"
     case boat = "boAt"
+    case soundcore = "Soundcore"
+    case samsung = "Samsung"
+    case sony = "Sony"
+    case xiaomi = "Xiaomi"
 }
 
-enum ANCMode: String, CaseIterable, Identifiable {
+enum FormFactor: String, Codable {
+    case tws = "TWS Earbuds"
+    case neckband = "Neckband"
+}
+
+enum ANCMode: String, CaseIterable, Identifiable, Codable {
     case off = "Off"
     case transparency = "Transparency"
     case noiseCancellation = "ANC"
@@ -110,6 +119,21 @@ struct DeviceState: Equatable {
     var touchMap: [UInt8: UInt8]?
     /// False when the buds never report the case's battery.
     var reportsCaseBattery = true
+    /// Earbud physical style (TWS earbuds vs neckband).
+    var formFactor: FormFactor = .tws
+    /// Gaming / Low-Latency mode support and state.
+    var supportsGamingMode = false
+    var gamingModeEnabled = false
+    /// In-Ear / Wear detection support and state.
+    var supportsInEarDetection = false
+    var inEarDetectionEnabled = false
+    /// Dual device / Multipoint connection support and state.
+    var supportsMultipoint = false
+    var multipointEnabled = false
+    /// Find My Buds (audible ring / chime) support and state.
+    var supportsFindMyBuds = false
+    var isRingingLeft = false
+    var isRingingRight = false
 }
 
 extension EQPreset {
@@ -133,10 +157,18 @@ protocol EarbudDriver: AnyObject {
     func setCustomEQ(_ eq: CustomEQ)
     func setTouchAction(_ action: UInt8, forGesture gesture: UInt8)
     func requestBattery()
+    func setGamingMode(_ enabled: Bool)
+    func setInEarDetection(_ enabled: Bool)
+    func setMultipoint(_ enabled: Bool)
+    func ringBud(left: Bool, start: Bool)
 }
 
 extension EarbudDriver {
     func setANCLevel(_ level: Int) {}
     func setCustomEQ(_ eq: CustomEQ) {}
     func setTouchAction(_ action: UInt8, forGesture gesture: UInt8) {}
+    func setGamingMode(_ enabled: Bool) {}
+    func setInEarDetection(_ enabled: Bool) {}
+    func setMultipoint(_ enabled: Bool) {}
+    func ringBud(left: Bool, start: Bool) {}
 }

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import IOBluetooth
 import os
@@ -26,6 +27,18 @@ extension Brand {
         if lower.hasPrefix("boat") || lower.contains("airdopes") || lower.contains("rockerz")
             || lower.contains("nirvana") {
             return .boat
+        }
+        if lower.contains("soundcore") || lower.contains("liberty") || lower.contains("space a") || lower.contains("life p") {
+            return .soundcore
+        }
+        if lower.contains("galaxy buds") || (lower.hasPrefix("buds") && !lower.contains("melo") && !lower.contains("aily")) {
+            return .samsung
+        }
+        if lower.hasPrefix("wf-") || lower.hasPrefix("wh-") || lower.hasPrefix("wf ") || lower.hasPrefix("wh ") || lower.contains("linkbuds") {
+            return .sony
+        }
+        if lower.contains("redmi buds") || lower.contains("xiaomi buds") {
+            return .xiaomi
         }
         return nil
     }
@@ -86,6 +99,22 @@ final class BudsManager: NSObject, ObservableObject {
                 self?.drivers.values.filter { $0.state.connection == .connected }.forEach { $0.requestBattery() }
             }
         }
+
+        // Sleep / Wake auto-reconnect: re-establishes control channel without manual reconnect
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            connectionLog.info("Mac woke from sleep — scheduling Bluetooth auto-reconnect")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                Task { @MainActor in self?.refreshConnectedDevices() }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) {
+                Task { @MainActor in self?.refreshConnectedDevices() }
+            }
+        }
+
         refreshConnectedDevices()
     }
 
@@ -135,6 +164,33 @@ final class BudsManager: NSObject, ObservableObject {
         selectedDriver?.setTouchAction(action, forGesture: gesture)
     }
 
+    func setGamingMode(_ enabled: Bool) {
+        selectedDriver?.setGamingMode(enabled)
+    }
+
+    func setInEarDetection(_ enabled: Bool) {
+        selectedDriver?.setInEarDetection(enabled)
+    }
+
+    func setMultipoint(_ enabled: Bool) {
+        selectedDriver?.setMultipoint(enabled)
+    }
+
+    func ringBud(left: Bool, start: Bool) {
+        if start, let buds = selected {
+            if let audio = AppDelegate.shared?.audio, let dev = audio.device(named: buds.name) {
+                audio.select(dev)
+            }
+        }
+        selectedDriver?.ringBud(left: left, start: start)
+        BudRinger.shared.ring(left: left, start: start, deviceName: selected?.name)
+        let addr = selectedAddress ?? order.first
+        if let idx = order.firstIndex(where: { $0 == addr }) {
+            if left { devices[idx].isRingingLeft = start }
+            else { devices[idx].isRingingRight = start }
+        }
+    }
+
     func reconnectSelected() {
         guard let driver = selectedDriver else { return }
         driver.disconnect()
@@ -149,6 +205,7 @@ final class BudsManager: NSObject, ObservableObject {
 
     /// Asks macOS to drop the Bluetooth link, the same as Disconnect in System Settings.
     func disconnectDevice(address: String) {
+        BudRinger.shared.stopAll()
         guard let device = IOBluetoothDevice(addressString: address) else { return }
         pendingAddresses.insert(address)
         device.closeConnection()
@@ -228,6 +285,10 @@ final class BudsManager: NSObject, ObservableObject {
         case .oneplus: return RealmeDriver(device: device, name: name, brand: .oneplus)
         // boAt's protocol isn't documented, and models use different chips.
         case .boat: return GenericDriver(device: device, name: name, brand: .boat)
+        case .soundcore: return SoundcoreDriver(device: device, name: name)
+        case .samsung: return GalaxyBudsDriver(device: device, name: name)
+        case .sony: return SonyDriver(device: device, name: name)
+        case .xiaomi: return XiaomiDriver(device: device, name: name)
         }
     }
 
@@ -240,13 +301,26 @@ final class BudsManager: NSObject, ObservableObject {
             guard let self, let index = self.order.firstIndex(of: address) else { return }
             self.devices[index] = state
             self.recordBattery(address: address, battery: state.battery)
+            NotificationManager.shared.checkBattery(for: state, address: address)
         }
         if selectedAddress == nil { selectedAddress = address }
         driver.connect()
+
+        // Auto-switch sound output to earbuds on connect if preference is set
+        if Preferences.shared.autoSwitchAudioOutput {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                if let audio = AppDelegate.shared?.audio,
+                   let earbudAudio = audio.device(named: driver.state.name) {
+                    audio.select(earbudAudio)
+                    connectionLog.info("Auto-switched audio output to \(driver.state.name, privacy: .public)")
+                }
+            }
+        }
     }
 
     private func removeDriver(address: String) {
         guard let index = order.firstIndex(of: address) else { return }
+        NotificationManager.shared.reset(for: address)
         if let entry = history.firstIndex(where: { $0.address == address }) {
             history[entry].lastConnected = Date()
             DeviceHistory.save(history)
@@ -264,5 +338,61 @@ final class BudsManager: NSObject, ObservableObject {
         // Open the control channel right away (the transport retries if the buds
         // aren't ready), on the main thread so refreshes never overlap.
         DispatchQueue.main.async { [weak self] in self?.refreshConnectedDevices() }
+    }
+
+    /// Dumps a formatted diagnostic report of connected Bluetooth devices, advertised SDP records, and battery status.
+    func exportBluetoothDebugInfo() -> String {
+        var report = "=== UnifiedBuds Bluetooth Diagnostics ===\n"
+        report += "Date: \(ISO8601DateFormatter().string(from: Date()))\n"
+        report += "OS: macOS \(ProcessInfo.processInfo.operatingSystemVersionString)\n\n"
+
+        let paired = (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? []
+        let connected = paired.filter { $0.isConnected() }
+
+        report += "Connected Devices (\(connected.count)):\n"
+        if connected.isEmpty {
+            report += "  (None connected)\n"
+        }
+
+        for dev in connected {
+            report += "----------------------------------------\n"
+            report += "Name: \(dev.name ?? "Unknown")\n"
+            report += "Address: \(dev.addressString ?? "Unknown")\n"
+            report += "Paired: \(dev.isPaired())\n"
+            report += "Connected: \(dev.isConnected())\n"
+            if let brand = Brand.detect(name: dev.name ?? "") {
+                report += "Detected Brand: \(brand.rawValue)\n"
+            } else {
+                report += "Detected Brand: None (unrecognized)\n"
+            }
+
+            if let services = dev.services as? [IOBluetoothSDPServiceRecord] {
+                report += "SDP Services (\(services.count)):\n"
+                for s in services {
+                    let name = s.getServiceName() ?? "(unnamed)"
+                    var channel: BluetoothRFCOMMChannelID = 0
+                    if s.getRFCOMMChannelID(&channel) == kIOReturnSuccess {
+                        report += "  • \(name) (RFCOMM Channel \(channel))\n"
+                    } else {
+                        report += "  • \(name)\n"
+                    }
+                }
+            } else {
+                report += "SDP Services: none queried or available\n"
+            }
+        }
+
+        report += "\nActive Drivers in UnifiedBuds (\(devices.count)):\n"
+        for (idx, devState) in devices.enumerated() {
+            report += "[\(idx + 1)] \(devState.name) (\(devState.brand.rawValue))\n"
+            report += "  Connection: \(devState.connection)\n"
+            report += "  Battery: L: \(devState.battery.left?.percent.description ?? "-")%  R: \(devState.battery.right?.percent.description ?? "-")%  Case: \(devState.battery.caseBattery?.percent.description ?? "-")%  Combined: \(devState.battery.combined?.percent.description ?? "-")%\n"
+            report += "  ANC: \(devState.ancMode?.rawValue ?? "-") (Supported: \(devState.supportedANCModes.map(\.rawValue).joined(separator: ", ")))\n"
+            report += "  Gaming: \(devState.supportsGamingMode ? (devState.gamingModeEnabled ? "On" : "Off") : "N/A")\n"
+            report += "  In-Ear: \(devState.supportsInEarDetection ? (devState.inEarDetectionEnabled ? "On" : "Off") : "N/A")\n"
+            report += "  Multipoint: \(devState.supportsMultipoint ? (devState.multipointEnabled ? "On" : "Off") : "N/A")\n"
+        }
+        report += "========================================\n"
+        return report
     }
 }

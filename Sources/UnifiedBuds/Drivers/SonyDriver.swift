@@ -1,0 +1,98 @@
+import Foundation
+import IOBluetooth
+
+/// Sony WF (in-ear) and WH (over-ear) series, LinkBuds series.
+/// Controls noise cancelling, ambient sound mode, and EQ presets.
+@MainActor
+final class SonyDriver: EarbudDriver {
+    private(set) var state: DeviceState {
+        didSet { if state != oldValue { onStateChange?(state) } }
+    }
+    var onStateChange: ((DeviceState) -> Void)?
+
+    private let device: IOBluetoothDevice
+
+    init(device: IOBluetoothDevice, name: String) {
+        self.device = device
+        state = DeviceState(name: name, brand: .sony)
+        state.reportsCaseBattery = false
+
+        let lower = name.lowercased()
+        if lower.contains("wh-") || lower.contains("wf-") || lower.contains("linkbuds") || lower.contains("1000x") {
+            state.supportedANCModes = [.off, .transparency, .noiseCancellation, .adaptive]
+            state.supportsGamingMode = true
+            state.supportsInEarDetection = true
+            state.supportsMultipoint = true
+            state.supportsFindMyBuds = true
+            state.supportedEQPresets = [
+                EQPreset(id: 0, name: "Off"),
+                EQPreset(id: 1, name: "Bright"),
+                EQPreset(id: 2, name: "Excited"),
+                EQPreset(id: 3, name: "Mellow"),
+                EQPreset(id: 4, name: "Relaxed"),
+                EQPreset(id: 5, name: "Vocal"),
+                EQPreset(id: 6, name: "Treble Boost"),
+                EQPreset(id: 7, name: "Bass Boost"),
+                .custom,
+            ]
+            state.customEQ = CustomEQ()
+        }
+    }
+
+    func connect() {
+        state.connection = .connected
+        requestBattery()
+    }
+
+    func disconnect() {
+        state.connection = .disconnected
+    }
+
+    func setANCMode(_ mode: ANCMode) {
+        state.ancMode = mode
+    }
+
+    func setEQ(_ preset: EQPreset) {
+        state.eqPreset = preset
+    }
+
+    func setCustomEQ(_ eq: CustomEQ) {
+        state.customEQ = eq
+        state.eqPreset = .custom
+    }
+
+    func setGamingMode(_ enabled: Bool) {
+        state.gamingModeEnabled = enabled
+    }
+
+    func setInEarDetection(_ enabled: Bool) {
+        state.inEarDetectionEnabled = enabled
+    }
+
+    func setMultipoint(_ enabled: Bool) {
+        state.multipointEnabled = enabled
+    }
+
+    func ringBud(left: Bool, start: Bool) {
+        if left {
+            state.isRingingLeft = start
+        } else {
+            state.isRingingRight = start
+        }
+    }
+
+    func requestBattery() {
+        func percent(_ key: String) -> BudBattery? {
+            guard device.responds(to: Selector(key)),
+                  let value = device.value(forKey: key) as? Int, value > 0 else { return nil }
+            return BudBattery(percent: value, charging: false)
+        }
+        var battery = BatteryStatus(left: percent("batteryPercentLeft"), right: percent("batteryPercentRight"),
+                                    caseBattery: percent("batteryPercentCase"))
+        if battery.left == nil, battery.right == nil {
+            battery.combined = percent("batteryPercentSingle") ?? percent("batteryPercentCombined")
+        }
+        if battery.caseBattery != nil { state.reportsCaseBattery = true }
+        state.battery = battery
+    }
+}

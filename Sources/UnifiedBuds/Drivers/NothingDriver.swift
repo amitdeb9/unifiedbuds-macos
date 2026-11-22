@@ -20,6 +20,10 @@ final class NothingDriver: EarbudDriver {
         static let setListeningMode: UInt16 = 0xF01D
         static let batteryPush: UInt16 = 0xE001
         static let ancPush: UInt16 = 0xE003
+        static let setGamingMode: UInt16 = 0xF018
+        static let setInEar: UInt16 = 0xF011
+        static let setMultipoint: UInt16 = 0xF020
+        static let ringBuds: UInt16 = 0xF003
     }
 
     private enum ANCByte {
@@ -46,6 +50,10 @@ final class NothingDriver: EarbudDriver {
         transport = RFCOMMTransport(device: device, serviceUUIDs: [Self.serviceUUID], fallbackChannel: 15)
         state = DeviceState(name: name, brand: .nothing)
         state.supportedANCModes = Self.ancModes(forName: lower)
+        state.supportsGamingMode = true
+        state.supportsInEarDetection = true
+        state.supportsMultipoint = true
+        state.supportsFindMyBuds = true
         state.supportedEQPresets = usesListeningMode
             ? [
                 EQPreset(id: 0, name: "Dirac Opteo"),
@@ -111,6 +119,33 @@ final class NothingDriver: EarbudDriver {
     func setEQ(_ preset: EQPreset) {
         send(usesListeningMode ? Command.setListeningMode : Command.setEQ, payload: [preset.id, 0x00])
         state.eqPreset = preset
+    }
+
+    func setGamingMode(_ enabled: Bool) {
+        send(Command.setGamingMode, payload: [enabled ? 0x01 : 0x00])
+        state.gamingModeEnabled = enabled
+    }
+
+    func setInEarDetection(_ enabled: Bool) {
+        send(Command.setInEar, payload: [enabled ? 0x01 : 0x00])
+        state.inEarDetectionEnabled = enabled
+    }
+
+    func setMultipoint(_ enabled: Bool) {
+        send(Command.setMultipoint, payload: [enabled ? 0x01 : 0x00])
+        state.multipointEnabled = enabled
+    }
+
+    func ringBud(left: Bool, start: Bool) {
+        if left {
+            state.isRingingLeft = start
+        } else {
+            state.isRingingRight = start
+        }
+        // Nothing ring buds: [left ? 1 : 0, right ? 1 : 0]
+        let leftByte: UInt8 = state.isRingingLeft ? 0x01 : 0x00
+        let rightByte: UInt8 = state.isRingingRight ? 0x01 : 0x00
+        send(Command.ringBuds, payload: [leftByte, rightByte])
     }
 
     func requestBattery() {

@@ -10,8 +10,12 @@ SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 # Launchpad next to the installed app.
 APP="build/UnifiedBuds.noindex/UnifiedBuds.app"
 
-swift build -c "$CONFIG" --arch arm64 --arch x86_64
-BIN="$(swift build -c "$CONFIG" --arch arm64 --arch x86_64 --show-bin-path)/UnifiedBuds"
+if [ -z "${SDKROOT:-}" ] && [ -d "/Library/Developer/CommandLineTools/SDKs/MacOSX14.5.sdk" ]; then
+    export SDKROOT="/Library/Developer/CommandLineTools/SDKs/MacOSX14.5.sdk"
+fi
+
+swift build -c "$CONFIG" --build-system native
+BIN="$(swift build -c "$CONFIG" --build-system native --show-bin-path)/UnifiedBuds"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"

@@ -1,0 +1,70 @@
+name: Request Model Support
+description: Request support for a new earbud or headphone model
+title: "[Model Support]: "
+labels: ["enhancement", "new-model"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping expand UnifiedBuds! Please fill out the details below.
+        You can copy Bluetooth debug information directly from **UnifiedBuds › Settings › About › Copy Bluetooth Debug Info**.
+
+  - type: input
+    id: brand
+    attributes:
+      label: Earbud Brand
+      placeholder: "e.g. Sony, Anker Soundcore, Samsung, Xiaomi, realme, Nothing"
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Exact Model Name
+      description: "The exact name shown in macOS Bluetooth settings or System Settings"
+      placeholder: "e.g. Sony WH-1000XM5, Soundcore Liberty 4 NC, Galaxy Buds2 Pro"
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS Version & Mac Architecture
+      placeholder: "e.g. macOS 14.5 (Apple Silicon M2 / Intel)"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: desired-features
+    attributes:
+      label: Features available in official mobile app
+      options:
+        - label: "Left / Right / Case Battery Levels"
+        - label: "Active Noise Cancellation (ANC) / Transparency"
+        - label: "EQ Presets & Custom Equalizer"
+        - label: "Touch / Button Controls Customization"
+        - label: "Low-Latency / Gaming Mode"
+        - label: "In-Ear Wear Detection"
+        - label: "Dual-Device / Multipoint Connection"
+        - label: "Find My Buds (Audible Ringing Chime)"
+
+  - type: textarea
+    id: debug-dump
+    attributes:
+      label: Bluetooth Debug Info / SDP Dump
+      description: "In UnifiedBuds, click the gear icon › About › 'Copy Bluetooth Debug Info' and paste the contents here."
+      placeholder: |
+        === UnifiedBuds Bluetooth Diagnostics ===
+        Date: ...
+        OS: macOS ...
+        ...
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: Known Protocol References or Notes (optional)
+      description: "Any existing reverse-engineered protocols, Gadgetbridge coordinators, or HCI packet logs"
+      placeholder: "e.g. Gadgetbridge supports this chip; SDP service record name is JL_SPP"

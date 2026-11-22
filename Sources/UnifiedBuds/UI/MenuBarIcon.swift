@@ -1,11 +1,15 @@
 import AppKit
 
-/// Which glyph the menu bar shows, chosen in the popover footer.
+/// Which glyph the menu bar shows, chosen in the settings.
 enum MenuBarIconStyle: String, CaseIterable, Identifiable {
     /// Three bars over a smile arc, matching the app icon.
     case appLogo = "App logo"
     /// The system earbuds symbol.
     case earbuds = "Earbuds"
+    /// Neckband earphones symbol (e.g. realme Buds Wireless).
+    case neckband = "Neckband"
+    /// Over-ear headphones symbol.
+    case headphones = "Headphones"
 
     var id: String { rawValue }
 }
@@ -16,8 +20,10 @@ enum MenuBarIcon {
     enum Status {
         case disconnected
         case connected
+        case ancOn
         case transparency
         case adaptive
+        case off
         case charging
     }
 
@@ -39,12 +45,18 @@ enum MenuBarIcon {
             switch style {
             case .appLogo: drawLogo(ctx, centerX: centerX)
             case .earbuds: drawEarbudsSymbol(centerX: centerX)
+            case .neckband: drawNeckbandSymbol(centerX: centerX)
+            case .headphones: drawHeadphonesSymbol(centerX: centerX)
             }
             switch status {
             case .transparency:
                 drawWaves(ctx, centerX: centerX)
+            case .ancOn:
+                drawBadge(ctx, centerX: centerX) { drawShield(ctx, center: $0) }
             case .adaptive:
                 drawBadge(ctx, centerX: centerX) { drawLetterA(ctx, center: $0) }
+            case .off:
+                drawBadge(ctx, centerX: centerX) { drawSlashCircle(ctx, center: $0) }
             case .charging:
                 if style == .appLogo {
                     drawBolt(ctx, centerX: centerX)
@@ -88,6 +100,31 @@ enum MenuBarIcon {
         let size = symbol.size
         symbol.draw(in: NSRect(x: centerX - size.width / 2, y: (height - size.height) / 2,
                                width: size.width, height: size.height))
+    }
+
+    private static func drawNeckbandSymbol(centerX: CGFloat) {
+        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [.black]))
+        let name = "beats.earphones"
+        if let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(config) {
+            let size = symbol.size
+            symbol.draw(in: NSRect(x: centerX - size.width / 2, y: (height - size.height) / 2,
+                                   width: size.width, height: size.height))
+        } else {
+            drawEarbudsSymbol(centerX: centerX)
+        }
+    }
+
+    private static func drawHeadphonesSymbol(centerX: CGFloat) {
+        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [.black]))
+        if let symbol = NSImage(systemSymbolName: "headphones", accessibilityDescription: nil)?.withSymbolConfiguration(config) {
+            let size = symbol.size
+            symbol.draw(in: NSRect(x: centerX - size.width / 2, y: (height - size.height) / 2,
+                                   width: size.width, height: size.height))
+        } else {
+            drawEarbudsSymbol(centerX: centerX)
+        }
     }
 
     // MARK: Status overlays
@@ -147,6 +184,19 @@ enum MenuBarIcon {
         ctx.addLine(to: CGPoint(x: center.x + 1.8, y: center.y - 2))
         ctx.move(to: CGPoint(x: center.x - 1, y: center.y - 0.5))
         ctx.addLine(to: CGPoint(x: center.x + 1, y: center.y - 0.5))
+        ctx.strokePath()
+    }
+
+    private static func drawShield(_ ctx: CGContext, center: CGPoint) {
+        // Subtle solid circle in badge for active noise cancellation
+        ctx.addEllipse(in: CGRect(x: center.x - 1.8, y: center.y - 1.8, width: 3.6, height: 3.6))
+        ctx.fillPath()
+    }
+
+    private static func drawSlashCircle(_ ctx: CGContext, center: CGPoint) {
+        ctx.setLineWidth(1.1)
+        ctx.move(to: CGPoint(x: center.x - 1.5, y: center.y - 1.5))
+        ctx.addLine(to: CGPoint(x: center.x + 1.5, y: center.y + 1.5))
         ctx.strokePath()
     }
 
