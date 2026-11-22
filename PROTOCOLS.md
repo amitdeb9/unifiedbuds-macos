@@ -6,17 +6,17 @@ Technical reference and byte specifications for wireless earbud control channels
 
 ## Brand Architecture Matrix
 
-| Brand | Primary Transport | Framing Protocol | Noise Control | Battery Source | Custom Features |
-|---|---|---|---|---|---|
-| **QCY (JieLi RCSP)** | RFCOMM (SPP `JL_SPP`) | RCSP (`FE DC BA ... EF`) | Setting `0x17` | Setting `0x2F` & Adv `0xC2` | 8-band EQ (`0x22`), Touch (`0x2B`), Game mode (`0x24`), Find My (`0x30`) |
-| **QCY (Legacy BLE)** | CoreBluetooth GATT | Service `A001` / Char `1001` | TLV `0x17` | Char `0008` & TLV `0x2F` | 10-band client EQ curve (Char `000B`) |
-| **Nothing / CMF** | RFCOMM `AEAC4A03-...` | `0x55` + CRC-16/MODBUS | Cmd `0xF00F` / `0xC01E` | Cmd `0xC007` & Push `0xE001` | EQ (`0xF010`/`0xF01D`), Game Mode (`0xF018`), Wear (`0xF011`), Ring (`0xF003`) |
-| **realme / OnePlus / OPPO** | RFCOMM HeyMelody | `0xAA` + LEB128 len | Cmd `0x0404` / Query `0x010C` | Cmd `0x0106` & Push `0x0204` | Game mode (`0x0406`), Wear (`0x0408`), Multipoint (`0x041A`), Find My (`0x0410`) |
-| **Anker Soundcore** | RFCOMM / BLE | Multi-format SPP / HFP | Query/Set Category | Hands-Free Profile (KVC) | EQ Presets, Game Mode, In-Ear, Multipoint |
-| **Samsung Galaxy Buds** | RFCOMM (Galaxy Buds Protocol) | `FD <len> <id> <data> <crc>` | Msg `SET_ANC` | Msg `BATTERY_STATUS` | Ambient sound level, Game mode, Find My ringing chime |
-| **Sony WF / WH** | RFCOMM SPP | Sony Headphone Protocol | Cmd category `0x0E` | Battery report bytes | 8-band EQ presets, LDAC toggles, Speak-to-chat |
-| **Xiaomi / Redmi** | RFCOMM / BLE | Mi Buds Protocol | Packet header `0xA5` | Broadcast & Query | ANC modes, Game mode, Dual connection |
-| **boAt** | Bluetooth Classic HFP | Apple HFP Battery AT commands | N/A | `batteryPercentLeft/Right/Combined` | Sound output switching, connect/disconnect |
+| Brand | Status | Primary Transport | Framing Protocol | Noise Control | Battery Source | Custom Features |
+|---|---|---|---|---|---|---|
+| **QCY (JieLi RCSP)** | ✓ Verified | RFCOMM (SPP `JL_SPP`) | RCSP (`FE DC BA ... EF`) | Setting `0x17` | Setting `0x2F` & Adv `0xC2` | 8-band EQ (`0x22`), Touch (`0x2B`), Game mode (`0x24`), Find My (`0x30`) |
+| **QCY (Legacy BLE)** | ✓ Verified | CoreBluetooth GATT | Service `A001` / Char `1001` | TLV `0x17` | Char `0008` & TLV `0x2F` | 10-band client EQ curve (Char `000B`) |
+| **Nothing / CMF** | ✓ Verified | RFCOMM `AEAC4A03-...` | `0x55` + CRC-16/MODBUS | Cmd `0xF00F` / `0xC01E` | Cmd `0xC007` & Push `0xE001` | EQ (`0xF010`/`0xF01D`), Game Mode (`0xF018`), Wear (`0xF011`), Ring (`0xF003`) |
+| **realme / OnePlus / OPPO** | ✓ Verified | RFCOMM HeyMelody | `0xAA` + LEB128 len | Cmd `0x0404` / Query `0x010C` | Cmd `0x0106` & Push `0x0204` | Game mode (`0x0406`), Wear (`0x0408`), Multipoint (`0x041A`), Find My (`0x0410`) |
+| **Anker Soundcore** | 🧪 Beta | RFCOMM / BLE | Multi-format SPP / HFP | Query/Set Category | Hands-Free Profile (KVC) | EQ Presets, Game Mode, In-Ear, Multipoint |
+| **Samsung Galaxy Buds** | 🧪 Beta | RFCOMM (Galaxy Buds Protocol) | `FD <len> <id> <data> <crc>` | Msg `SET_ANC` | Msg `BATTERY_STATUS` | Ambient sound level, Game mode, Find My ringing chime |
+| **Sony WF / WH** | 🧪 Beta | RFCOMM SPP | Sony Headphone Protocol | Cmd category `0x0E` | Battery report bytes | 8-band EQ presets, LDAC toggles, Speak-to-chat |
+| **Xiaomi / Redmi** | 🧪 Beta | RFCOMM / BLE | Mi Buds Protocol | Packet header `0xA5` | Broadcast & Query | ANC modes, Game mode, Dual connection |
+| **boAt** | 🧪 Beta | Bluetooth Classic HFP | Apple HFP Battery AT commands | N/A | `batteryPercentLeft/Right/Combined` | Sound output switching, connect/disconnect |
 
 ---
 

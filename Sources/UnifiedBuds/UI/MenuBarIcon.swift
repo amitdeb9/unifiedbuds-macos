@@ -10,6 +10,8 @@ enum MenuBarIconStyle: String, CaseIterable, Identifiable {
     case neckband = "Neckband"
     /// Over-ear headphones symbol.
     case headphones = "Headphones"
+    /// Waveform audio symbol.
+    case waveform = "Waveform"
 
     var id: String { rawValue }
 }
@@ -47,6 +49,7 @@ enum MenuBarIcon {
             case .earbuds: drawEarbudsSymbol(centerX: centerX)
             case .neckband: drawNeckbandSymbol(centerX: centerX)
             case .headphones: drawHeadphonesSymbol(centerX: centerX)
+            case .waveform: drawWaveformSymbol(centerX: centerX)
             }
             switch status {
             case .transparency:
@@ -125,6 +128,30 @@ enum MenuBarIcon {
         } else {
             drawEarbudsSymbol(centerX: centerX)
         }
+    }
+
+    private static func drawWaveformSymbol(centerX: CGFloat) {
+        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [.black]))
+        if let symbol = NSImage(systemSymbolName: "waveform", accessibilityDescription: nil)?.withSymbolConfiguration(config) {
+            let size = symbol.size
+            symbol.draw(in: NSRect(x: centerX - size.width / 2, y: (height - size.height) / 2,
+                                   width: size.width, height: size.height))
+        } else {
+            drawEarbudsSymbol(centerX: centerX)
+        }
+    }
+
+    /// Selects the appropriate device-specific icon based on form factor and product name.
+    static func symbolForDevice(name: String) -> String {
+        let lower = name.lowercased()
+        if lower.contains("neckband") || lower.contains("wireless") || lower.contains("flex") {
+            return "beats.earphones"
+        }
+        if lower.contains("wh-") || lower.contains("space q") || lower.contains("headphones") || lower.contains("life q") || lower.contains("max") {
+            return "headphones"
+        }
+        return "earbuds"
     }
 
     // MARK: Status overlays

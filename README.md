@@ -26,17 +26,17 @@ A lightweight macOS menu bar app for **QCY, Nothing / CMF, realme, OnePlus, boAt
  └──────────────────────────────────────────────┘
 ```
 
-| Brand | Battery (L / R / Case) | Noise Control | EQ Presets & Custom Curves | Gaming & Features |
-|---|---|---|---|---|
-| **QCY** (JieLi models, e.g. MeloBuds N20) | ✓ (L/R) | ✓ (ANC / Transp / Adapt) | ✓ (8-band factory curve + custom dB) | ✓ (Touch, Gaming, Find My) |
-| **QCY** (Classic BLE A001 models) | ✓ (L/R/Case) | ✓ | ✓ (10-band client EQ) | |
-| **Nothing / CMF** (Ear, Ear (a), CMF Pro) | ✓ (L/R/Case) | ✓ | ✓ (Dirac Opteo / Balanced) | ✓ (Gaming, Wear, Multipoint, Ring) |
-| **realme, OPPO, OnePlus** (HeyMelody) | ✓ (L/R/Case) | ✓ | ✓ | ✓ (Gaming, Wear, Multipoint, Neckband) |
-| **Anker Soundcore** (Liberty, Space, Life) | ✓ | ✓ | ✓ (Signature, Acoustic, Custom) | ✓ (Gaming, Wear, Multipoint) |
-| **Samsung Galaxy Buds** (Buds2, Pro, FE, 3) | ✓ | ✓ | ✓ (Normal, Bass Boost, Dynamic) | ✓ (Gaming, Wear, Find My chime) |
-| **Sony** (WF/WH-1000XM4/XM5, LinkBuds) | ✓ | ✓ | ✓ (Bright, Excited, Bass Boost) | ✓ (Gaming, Wear, Multipoint) |
-| **Xiaomi / Redmi Buds** (Pro series) | ✓ | ✓ | ✓ (Standard, Enhance Bass, Custom)| ✓ (Gaming, Wear, Find My) |
-| **boAt** (Airdopes, Rockerz, Nirvana) | ✓ (HFP status) | | | Sound output & connection |
+| Brand | Status | Battery (L / R / Case) | Noise Control | EQ Presets & Custom Curves | Gaming & Features |
+|---|---|---|---|---|---|
+| **QCY** (JieLi models, e.g. MeloBuds N20) | ✓ Verified | ✓ (L/R) | ✓ (ANC / Transp / Adapt) | ✓ (8-band factory curve + custom dB) | ✓ (Touch, Gaming, Find My) |
+| **QCY** (Classic BLE A001 models) | ✓ Verified | ✓ (L/R/Case) | ✓ | ✓ (10-band client EQ) | |
+| **Nothing / CMF** (e.g. Ear (1), Ear (a), CMF Pro) | ✓ Verified | ✓ (L/R/Case) | ✓ | ✓ (Dirac Opteo / Balanced) | ✓ (Gaming, Wear, Multipoint, Ring) |
+| **realme, OPPO, OnePlus** (e.g. Buds Wireless 5 ANC) | ✓ Verified | ✓ (L/R/Case) | ✓ | ✓ | ✓ (Gaming, Wear, Multipoint, Neckband) |
+| **Anker Soundcore** (Liberty, Space, Life) | 🧪 Beta (Needs Testing) | ✓ | ✓ | ✓ (Signature, Acoustic, Custom) | ✓ (Gaming, Wear, Multipoint) |
+| **Samsung Galaxy Buds** (Buds2, Pro, FE, 3) | 🧪 Beta (Needs Testing) | ✓ | ✓ | ✓ (Normal, Bass Boost, Dynamic) | ✓ (Gaming, Wear, Find My chime) |
+| **Sony** (WF/WH-1000XM4/XM5, LinkBuds) | 🧪 Beta (Needs Testing) | ✓ | ✓ | ✓ (Bright, Excited, Bass Boost) | ✓ (Gaming, Wear, Multipoint) |
+| **Xiaomi / Redmi Buds** (Pro series) | 🧪 Beta (Needs Testing) | ✓ | ✓ | ✓ (Standard, Enhance Bass, Custom)| ✓ (Gaming, Wear, Find My) |
+| **boAt** (Airdopes, Rockerz, Nirvana) | 🧪 Beta (Needs Testing) | ✓ (HFP status) | | | Sound output & connection |
 
 Requires macOS 13+ (Ventura, Sonoma, Sequoia).
 
@@ -47,7 +47,7 @@ Requires macOS 13+ (Ventura, Sonoma, Sequoia).
 ### 1. Homebrew Cask (Recommended)
 
 ```sh
-brew tap amitdeb9/tap
+brew tap amitdeb9/unifiedbuds https://github.com/amitdeb9/unifiedbuds-macos
 brew install --cask unifiedbuds
 ```
 

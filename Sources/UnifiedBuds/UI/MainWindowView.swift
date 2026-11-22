@@ -188,7 +188,7 @@ private struct EarbudsPage: View {
     }
 
     private func header(_ device: DeviceState) -> some View {
-        let iconName = device.formFactor == .neckband ? "beats.earphones" : "earbuds"
+        let iconName = MenuBarIcon.symbolForDevice(name: device.name)
         return HStack(spacing: 14) {
             Image(systemName: iconName)
                 .font(.system(size: 30))
@@ -308,7 +308,7 @@ private struct BatteryRow: View {
     let device: DeviceState
 
     private var budSymbol: String {
-        device.formFactor == .neckband ? "beats.earphones" : "earbuds"
+        MenuBarIcon.symbolForDevice(name: device.name)
     }
 
     var body: some View {
@@ -435,7 +435,7 @@ private struct DevicesPage: View {
     private func row(_ device: KnownDevice) -> some View {
         let connected = manager.isConnected(device.address)
         return HStack(spacing: 12) {
-            Image(systemName: "earbuds")
+            Image(systemName: MenuBarIcon.symbolForDevice(name: device.name))
                 .font(.title2)
                 .foregroundStyle(connected ? Color.accentColor : .secondary)
                 .frame(width: 32)

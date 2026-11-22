@@ -1,4 +1,49 @@
+import AppKit
 import SwiftUI
+
+/// Native macOS Visual Effect view for Control Center-style backdrop vibrancy blur
+struct VisualEffectBackground: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .popover
+    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
+    var state: NSVisualEffectView.State = .active
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = state
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+        nsView.state = state
+    }
+}
+
+/// Frosted Glass Card wrapper matching macOS Control Center aesthetic
+struct GlassCard<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.primary.opacity(0.06))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    }
+            }
+    }
+}
 
 struct MenuPopoverView: View {
     @EnvironmentObject private var manager: BudsManager
@@ -17,16 +62,16 @@ struct MenuPopoverView: View {
             }
 
             if !manager.history.isEmpty {
-                Divider().opacity(0.4)
+                Divider().opacity(0.3)
                 DeviceHistoryList()
             }
 
-            Divider().opacity(0.4)
+            Divider().opacity(0.3)
             footer
         }
         .padding(12)
         .frame(width: 310)
-        .background(.ultraThinMaterial)
+        .background(VisualEffectBackground(material: .popover, blendingMode: .behindWindow, state: .active))
         .modifier(NoFocusRing())
     }
 
@@ -66,43 +111,6 @@ struct MenuPopoverView: View {
             }
         }
         .padding(.horizontal, 2)
-    }
-}
-
-/// Frosted Glass Card wrapper for sleek macOS translucent styling
-struct GlassCard<Content: View>: View {
-    let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    var body: some View {
-        content
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.primary.opacity(0.04))
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.22),
-                                        Color.white.opacity(0.06),
-                                        Color.clear
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 0.75
-                            )
-                    }
-                    .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
-            }
     }
 }
 
@@ -232,7 +240,7 @@ private struct ActiveSleepTimerPill: View {
                 .font(.caption)
                 .foregroundStyle(.indigo)
             Text("Sleep timer: \(sleepTimer.formattedRemaining)")
-                .font(.caption.weight(.medium))
+                .font(.caption.weight(.medium).monospacedDigit())
             Spacer()
             Button("Cancel") {
                 sleepTimer.cancel()
@@ -261,61 +269,83 @@ struct DeviceControls: View {
 
     private var enabled: Bool { device.connection == .connected }
 
+    private var budSymbol: String {
+        MenuBarIcon.symbolForDevice(name: device.name)
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             // Glass Battery Card
             GlassCard {
                 HStack(spacing: 0) {
                     if let combined = device.battery.combined, device.battery.left == nil, device.battery.right == nil {
-                        BatteryCell(label: "Earbuds", symbol: device.formFactor == .neckband ? "beats.earphones" : "earbuds", battery: combined)
+                        BatteryCell(label: "Earbuds", symbol: budSymbol, battery: combined)
                     } else {
-                        BatteryCell(label: "L", symbol: device.formFactor == .neckband ? "beats.earphones" : "earbuds", battery: device.battery.left)
-                        BatteryCell(label: "R", symbol: device.formFactor == .neckband ? "beats.earphones" : "earbuds", battery: device.battery.right)
+                        BatteryCell(label: "L", symbol: budSymbol, battery: device.battery.left)
+                        BatteryCell(label: "R", symbol: budSymbol, battery: device.battery.right)
                     }
                     BatteryCell(label: "Case", symbol: "earbuds.case", battery: device.battery.caseBattery,
                                 unavailable: !device.reportsCaseBattery)
                 }
             }
 
-            // Sound Output Card
+            // Sound Output Card (Cleanly hidden if audio devices unavailable)
             if let buds = audio.device(named: device.name), let mac = audio.builtInDevice {
                 GlassCard {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("SOUND OUTPUT")
                             .font(.system(size: 9, weight: .bold, design: .rounded))
                             .foregroundStyle(.secondary)
-                        Picker("", selection: Binding(
-                            get: { audio.defaultDeviceID },
-                            set: { id in
-                                if let target = [buds, mac].first(where: { $0.id == id }) { audio.select(target) }
+
+                        HStack(spacing: 6) {
+                            soundOutputButton(title: "Earbuds", icon: budSymbol, isSelected: audio.defaultDeviceID == buds.id) {
+                                withAnimation(.snappy) { audio.select(buds) }
                             }
-                        )) {
-                            Label("Earbuds", systemImage: "earbuds").tag(buds.id)
-                            Label("Mac Speakers", systemImage: "laptopcomputer").tag(mac.id)
+                            soundOutputButton(title: "Mac Speakers", icon: "laptopcomputer", isSelected: audio.defaultDeviceID == mac.id) {
+                                withAnimation(.snappy) { audio.select(mac) }
+                            }
                         }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
                     }
                 }
             }
 
-            // Noise Control Card
+            // Control Center-Style Noise Control Card (Cleanly hidden if unsupported)
             if !device.supportedANCModes.isEmpty {
                 GlassCard {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("NOISE CONTROL")
                             .font(.system(size: 9, weight: .bold, design: .rounded))
                             .foregroundStyle(.secondary)
-                        Picker("", selection: Binding(
-                            get: { device.ancMode },
-                            set: { if let mode = $0 { manager.setANCMode(mode) } }
-                        )) {
+
+                        HStack(spacing: 6) {
                             ForEach(device.supportedANCModes) { mode in
-                                Text(mode.rawValue).tag(Optional(mode))
+                                let isSelected = device.ancMode == mode
+                                Button {
+                                    withAnimation(.snappy) {
+                                        manager.setANCMode(mode)
+                                    }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: iconForMode(mode))
+                                            .font(.system(size: 10, weight: .semibold))
+                                        Text(shortName(for: mode))
+                                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 6)
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.06))
+                                            .overlay {
+                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                    .strokeBorder(isSelected ? Color.clear : Color.white.opacity(0.08), lineWidth: 1)
+                                            }
+                                    }
+                                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
 
                         if device.ancMode == .noiseCancellation, !device.ancLevels.isEmpty {
                             HStack {
@@ -337,7 +367,7 @@ struct DeviceControls: View {
                 }
             }
 
-            // Equalizer Card
+            // Equalizer Card (Cleanly hidden if unsupported)
             if !device.supportedEQPresets.isEmpty {
                 GlassCard {
                     VStack(alignment: .leading, spacing: 6) {
@@ -361,8 +391,94 @@ struct DeviceControls: View {
                     }
                 }
             }
+
+            // Features Card (Cleanly hidden if unsupported)
+            if device.supportsGamingMode || device.supportsInEarDetection || device.supportsMultipoint || device.supportsFindMyBuds {
+                GlassCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("FEATURES")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+
+                        if device.supportsGamingMode {
+                            Toggle("Low-Latency / Gaming Mode", isOn: Binding(
+                                get: { device.gamingModeEnabled },
+                                set: { manager.setGamingMode($0) }
+                            ))
+                            .font(.caption)
+                        }
+
+                        if device.supportsFindMyBuds {
+                            HStack {
+                                Text("Find My Buds").font(.caption)
+                                Spacer()
+                                Button {
+                                    manager.ringBud(left: true, start: !device.isRingingLeft)
+                                } label: {
+                                    Label(device.isRingingLeft ? "Stop L" : "Ring L",
+                                          systemImage: device.isRingingLeft ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                        .font(.caption2)
+                                }
+                                .controlSize(.small)
+                                .tint(device.isRingingLeft ? .red : .accentColor)
+
+                                Button {
+                                    manager.ringBud(left: false, start: !device.isRingingRight)
+                                } label: {
+                                    Label(device.isRingingRight ? "Stop R" : "Ring R",
+                                          systemImage: device.isRingingRight ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                        .font(.caption2)
+                                }
+                                .controlSize(.small)
+                                .tint(device.isRingingRight ? .red : .accentColor)
+                            }
+                        }
+                    }
+                }
+            }
         }
         .disabled(!enabled)
+    }
+
+    private func soundOutputButton(title: String, icon: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.06))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(isSelected ? Color.clear : Color.white.opacity(0.08), lineWidth: 1)
+                    }
+            }
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func iconForMode(_ mode: ANCMode) -> String {
+        switch mode {
+        case .off: return "slash.circle"
+        case .transparency: return "wave.3.forward"
+        case .noiseCancellation: return "shield.fill"
+        case .adaptive: return "a.circle.fill"
+        }
+    }
+
+    private func shortName(for mode: ANCMode) -> String {
+        switch mode {
+        case .off: return "Off"
+        case .transparency: return "Transp."
+        case .noiseCancellation: return "ANC"
+        case .adaptive: return "Adaptive"
+        }
     }
 }
 
@@ -458,14 +574,7 @@ private struct DeviceRow: View {
     let pending: Bool
 
     private var iconName: String {
-        let lower = device.name.lowercased()
-        if lower.contains("wireless") || lower.contains("neckband") {
-            return "beats.earphones"
-        }
-        if lower.contains("wh-") || lower.contains("space q") || lower.contains("headphones") {
-            return "headphones"
-        }
-        return "earbuds"
+        MenuBarIcon.symbolForDevice(name: device.name)
     }
 
     var body: some View {
