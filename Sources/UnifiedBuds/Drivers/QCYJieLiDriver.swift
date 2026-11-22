@@ -109,6 +109,7 @@ final class QCYJieLiDriver: EarbudDriver {
     private let ancDefaultsKey: String
     private let ancLevelDefaultsKey: String
     private let customEQDefaultsKey: String
+    private let touchPairsDefaultsKey: String
     private var receivedReply = false
     /// Bumped on every channel open so a previous connection's retry loop stops.
     private var connectionGeneration = 0
@@ -124,6 +125,7 @@ final class QCYJieLiDriver: EarbudDriver {
         ancDefaultsKey = "ancMode.\(address)"
         ancLevelDefaultsKey = "ancLevel.\(address)"
         customEQDefaultsKey = "customEQ.\(address)"
+        touchPairsDefaultsKey = "touchPairs.\(address)"
         state = DeviceState(name: name, brand: .qcy)
         state.supportedANCModes = [.off, .transparency, .noiseCancellation, .adaptive]
         state.ancMode = UserDefaults.standard.string(forKey: ancDefaultsKey).flatMap(ANCMode.init(rawValue:))
@@ -132,6 +134,15 @@ final class QCYJieLiDriver: EarbudDriver {
         state.ancLevel = UserDefaults.standard.object(forKey: ancLevelDefaultsKey) as? Int ?? 2
         state.customEQ = UserDefaults.standard.data(forKey: customEQDefaultsKey)
             .flatMap { try? JSONDecoder().decode(CustomEQ.self, from: $0) } ?? CustomEQ()
+
+        if let savedPairs = UserDefaults.standard.array(forKey: touchPairsDefaultsKey) as? [UInt8],
+           savedPairs.count >= 2, savedPairs.count % 2 == 0 {
+            touchPairs = savedPairs
+            var map: [UInt8: UInt8] = [:]
+            for i in stride(from: 0, to: savedPairs.count - 1, by: 2) { map[savedPairs[i]] = savedPairs[i + 1] }
+            state.touchMap = map
+        }
+
         // The N20 never reports the case (0 in every battery reply, nothing over BLE).
         state.reportsCaseBattery = false
         state.supportsGamingMode = true
@@ -207,6 +218,7 @@ final class QCYJieLiDriver: EarbudDriver {
         pairs[index + 1] = action
         send(Opcode.custom, payload: [Setting.keys, UInt8(pairs.count)] + pairs)
         touchPairs = pairs
+        UserDefaults.standard.set(pairs, forKey: touchPairsDefaultsKey)
         state.touchMap?[gesture] = action
         // Read back so the menu shows what the buds actually stored.
         send(Opcode.custom, payload: [Setting.read, 0x01, Setting.keys])
@@ -399,6 +411,7 @@ final class QCYJieLiDriver: EarbudDriver {
         case Setting.keys where data.count >= 2 && data.count % 2 == 0:
             connectionLog.info("touch table: \(data.map { String(format: "%02X", $0) }.joined(separator: " "), privacy: .public)")
             touchPairs = data
+            UserDefaults.standard.set(data, forKey: touchPairsDefaultsKey)
             var map: [UInt8: UInt8] = [:]
             for i in stride(from: 0, to: data.count - 1, by: 2) { map[data[i]] = data[i + 1] }
             state.touchMap = map

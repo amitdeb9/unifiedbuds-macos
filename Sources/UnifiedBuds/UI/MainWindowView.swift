@@ -24,12 +24,29 @@ struct MainWindowView: View {
         }
     }
 
+    @EnvironmentObject private var manager: BudsManager
     @State private var page: Page? = .earbuds
+
+    /// Automatically hides Touch Controls from the sidebar if unsupported or not loaded.
+    private var visiblePages: [Page] {
+        var pages: [Page] = [.earbuds]
+        if let device = manager.selected, let map = device.touchMap, !map.isEmpty {
+            pages.append(.touch)
+        }
+        pages.append(contentsOf: [.devices, .general, .about])
+        return pages
+    }
 
     var body: some View {
         NavigationSplitView {
-            List(Page.allCases, selection: $page) { page in
-                Label(page.rawValue, systemImage: page.symbol).tag(page)
+            List(visiblePages, selection: Binding(
+                get: {
+                    if let p = page, visiblePages.contains(p) { return p }
+                    return .earbuds
+                },
+                set: { page = $0 }
+            )) { p in
+                Label(p.rawValue, systemImage: p.symbol).tag(p)
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
         } detail: {
@@ -298,7 +315,7 @@ private struct TouchPage: View {
 
     var body: some View {
         Form {
-            if let device = manager.selected, let map = device.touchMap {
+            if let device = manager.selected, let map = device.touchMap, !map.isEmpty {
                 let enabled = device.connection == .connected
                 Section {
                     ForEach(TouchGesture.allCases) { gesture in
@@ -318,11 +335,18 @@ private struct TouchPage: View {
                     Label("Right Earbud", systemImage: "r.circle")
                 }
                 .disabled(!enabled)
+            } else if let device = manager.selected, device.connection == .connecting {
+                Section {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Loading touch controls from \(device.name)…").foregroundStyle(.secondary)
+                    }
+                }
             } else {
                 Section {
                     Text(manager.selected == nil
                          ? "Connect your earbuds to change their touch controls."
-                         : "These earbuds don't support changing touch controls yet.")
+                         : "Touch controls are not supported on this model.")
                         .foregroundStyle(.secondary)
                 }
             }
