@@ -23,12 +23,21 @@ latest=$(printf '%s' "$release" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed
 url=$(printf '%s' "$release" | grep -o '"browser_download_url": *"[^"]*\.zip"' | head -1 | sed 's/.*"\(https[^"]*\)"$/\1/' || true)
 [ -n "$url" ] || { echo "No release download found for $REPO." >&2; exit 1; }
 
+# Semantic version comparison: returns 0 if $1 >= $2
+version_ge() {
+    [ "$1" = "$2" ] && return 0
+    local lowest
+    lowest=$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)
+    [ "$lowest" != "$1" ]
+}
+
 installed=""
 if [ -d "$DEST/$APP" ]; then
     installed=$(defaults read "$DEST/$APP/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)
 fi
-if $update_only && [ -n "${installed}" ] && [ "${installed}" = "${latest}" ]; then
-    echo "UnifiedBuds ${installed} is already up to date."
+
+if [ -n "${installed}" ] && version_ge "${installed}" "${latest}"; then
+    echo "UnifiedBuds ${installed} is already up to date (latest release is ${latest})."
     exit 0
 fi
 
