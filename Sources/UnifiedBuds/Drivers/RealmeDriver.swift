@@ -1,7 +1,7 @@
 import Foundation
 import IOBluetooth
 
-/// realme (and OPPO/OnePlus) earbuds over RFCOMM using the HeyMelody protocol.
+/// realme, OPPO and OnePlus earbuds over RFCOMM using the HeyMelody protocol.
 ///
 /// Frame: `AA <len LEB128 = 7 + payload> 00 00 <command u16 LE> <seq> <payload len u16 LE> <payload>`,
 /// no checksum. Replies use `command | 0x8000`. Protocol from BudsControl and Gadgetbridge.
@@ -39,9 +39,9 @@ final class RealmeDriver: EarbudDriver {
     private var buffer: [UInt8] = []
     private var sequence: UInt8 = 0
 
-    init(device: IOBluetoothDevice, name: String) {
+    init(device: IOBluetoothDevice, name: String, brand: Brand) {
         transport = RFCOMMTransport(device: device, serviceUUIDs: Self.serviceUUIDs, fallbackChannel: 15)
-        state = DeviceState(name: name, brand: .realme)
+        state = DeviceState(name: name, brand: brand)
         state.supportedANCModes = [.off, .transparency, .noiseCancellation]
         // Built-in EQ preset ids aren't reported by the buds or documented for
         // realme, so EQ stays hidden until they're mapped per model.

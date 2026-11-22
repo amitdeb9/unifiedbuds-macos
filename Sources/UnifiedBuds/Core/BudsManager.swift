@@ -17,8 +17,15 @@ extension Brand {
             || lower.hasPrefix("cmf") {
             return .nothing
         }
-        if lower.hasPrefix("realme") || lower.hasPrefix("oppo enco") || lower.hasPrefix("oneplus buds") {
+        if lower.hasPrefix("realme") || lower.hasPrefix("oppo enco") {
             return .realme
+        }
+        if lower.hasPrefix("oneplus") {
+            return .oneplus
+        }
+        if lower.hasPrefix("boat") || lower.contains("airdopes") || lower.contains("rockerz")
+            || lower.contains("nirvana") {
+            return .boat
         }
         return nil
     }
@@ -30,7 +37,7 @@ extension Brand {
 final class BudsManager: NSObject, ObservableObject {
     @Published private(set) var devices: [DeviceState] = []
     @Published var selectedAddress: String?
-    /// Every supported device seen on this Mac, most recently connected first.
+    /// Supported earbuds that have connected while the app was running, most recent first.
     @Published private(set) var history: [KnownDevice] = DeviceHistory.load()
     /// Addresses with a connect or disconnect in flight.
     @Published private(set) var pendingAddresses: Set<String> = []
@@ -79,7 +86,6 @@ final class BudsManager: NSObject, ObservableObject {
                 self?.drivers.values.filter { $0.state.connection == .connected }.forEach { $0.requestBattery() }
             }
         }
-        seedHistoryFromPairedDevices()
         refreshConnectedDevices()
     }
 
@@ -186,19 +192,6 @@ final class BudsManager: NSObject, ObservableObject {
 
     // MARK: History
 
-    /// Adds supported earbuds already paired with this Mac. macOS's access dates
-    /// move on any inquiry, so they show as "Paired" until they actually connect.
-    private func seedHistoryFromPairedDevices() {
-        let paired = (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice]) ?? []
-        for device in paired {
-            guard let address = device.addressString, let name = device.name, Brand.detect(name: name) != nil,
-                  !history.contains(where: { $0.address == address }) else { continue }
-            history.append(KnownDevice(address: address, name: name, lastConnected: .distantPast))
-        }
-        history.sort { $0.lastConnected > $1.lastConnected }
-        DeviceHistory.save(history)
-    }
-
     private func recordConnection(address: String, name: String) {
         if let index = history.firstIndex(where: { $0.address == address }) {
             history[index].name = name
@@ -216,9 +209,10 @@ final class BudsManager: NSObject, ObservableObject {
         entry.left = battery.left?.percent ?? entry.left
         entry.right = battery.right?.percent ?? entry.right
         entry.caseBattery = battery.caseBattery?.percent ?? entry.caseBattery
+        entry.combined = battery.combined?.percent ?? entry.combined
         entry.lastConnected = Date()
         guard entry.left != history[index].left || entry.right != history[index].right
-            || entry.caseBattery != history[index].caseBattery else { return }
+            || entry.caseBattery != history[index].caseBattery || entry.combined != history[index].combined else { return }
         history[index] = entry
         DeviceHistory.save(history)
     }
@@ -229,7 +223,11 @@ final class BudsManager: NSObject, ObservableObject {
             if QCYJieLiDriver.matches(device) { return QCYJieLiDriver(device: device, name: name) }
             return QCYDriver(name: name)
         case .nothing: return NothingDriver(device: device, name: name)
-        case .realme: return RealmeDriver(device: device, name: name)
+        case .realme: return RealmeDriver(device: device, name: name, brand: .realme)
+        // OnePlus Buds use the same HeyMelody protocol as realme and OPPO.
+        case .oneplus: return RealmeDriver(device: device, name: name, brand: .oneplus)
+        // boAt's protocol isn't documented, and models use different chips.
+        case .boat: return GenericDriver(device: device, name: name, brand: .boat)
         }
     }
 

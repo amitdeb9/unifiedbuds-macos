@@ -183,8 +183,12 @@ private struct BatteryRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            cell("Left", symbol: "earbuds", battery: device.battery.left, unavailable: false)
-            cell("Right", symbol: "earbuds", battery: device.battery.right, unavailable: false)
+            if let combined = device.battery.combined, device.battery.left == nil, device.battery.right == nil {
+                cell("Earbuds", symbol: "earbuds", battery: combined, unavailable: false)
+            } else {
+                cell("Left", symbol: "earbuds", battery: device.battery.left, unavailable: false)
+                cell("Right", symbol: "earbuds", battery: device.battery.right, unavailable: false)
+            }
             cell("Case", symbol: "earbuds.case", battery: device.battery.caseBattery,
                  unavailable: !device.reportsCaseBattery)
         }
@@ -329,7 +333,7 @@ private struct DevicesPage: View {
         } else {
             parts.append("Paired")
         }
-        let levels = [("L", device.left), ("R", device.right), ("Case", device.caseBattery)]
+        let levels = [("Battery", device.combined), ("L", device.left), ("R", device.right), ("Case", device.caseBattery)]
             .compactMap { label, value in value.map { "\(label) \($0)%" } }
         if !levels.isEmpty { parts.append(levels.joined(separator: "  ")) }
         return parts.joined(separator: " · ")
@@ -407,7 +411,7 @@ private struct AboutPage: View {
                         .frame(width: 128, height: 128)
                     Text("UnifiedBuds").font(.largeTitle.weight(.semibold))
                     Text(version).foregroundStyle(.secondary)
-                    Text("Battery, noise control, EQ and touch controls for QCY, Nothing / CMF and realme earbuds.")
+                    Text("Battery, noise control, EQ and touch controls for QCY, Nothing / CMF, realme, OnePlus and boAt earbuds.")
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -8,6 +8,8 @@ struct KnownDevice: Codable, Identifiable, Equatable {
     var left: Int?
     var right: Int?
     var caseBattery: Int?
+    /// Single headset level from earbuds that don't report each bud.
+    var combined: Int?
 
     var id: String { address }
     var brand: Brand? { Brand.detect(name: name) }
@@ -20,7 +22,10 @@ enum DeviceHistory {
     static func load() -> [KnownDevice] {
         guard let data = UserDefaults.standard.data(forKey: key),
               let devices = try? JSONDecoder().decode([KnownDevice].self, from: data) else { return [] }
-        return devices.sorted { $0.lastConnected > $1.lastConnected }
+        // Older versions also listed every paired device that had never connected to
+        // the app (stored with a distant-past date); drop those.
+        return devices.filter { $0.lastConnected > .distantPast }
+            .sorted { $0.lastConnected > $1.lastConnected }
     }
 
     static func save(_ devices: [KnownDevice]) {

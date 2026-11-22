@@ -1,6 +1,16 @@
 # UnifiedBuds
 
-A lightweight macOS menu bar app for QCY, Nothing / CMF and realme earbuds: battery (L / R / case), noise control (Off / Transparency / ANC / Adaptive), EQ presets, connect / disconnect, and a list of every supported device seen on this Mac with its last battery levels.
+A lightweight macOS menu bar app for QCY, Nothing / CMF, realme, OnePlus and boAt earbuds: battery (L / R / case), noise control (Off / Transparency / ANC / Adaptive), EQ presets, touch controls, connect / disconnect, and a list of the earbuds that have connected to the app with their last battery levels.
+
+| Brand | Battery | Noise control | EQ | Touch controls |
+|---|---|---|---|---|
+| QCY (JieLi models, e.g. MeloBuds N20) | ✓ | ✓ | ✓ | ✓ |
+| QCY (older BLE models) | ✓ | ✓ | ✓ | |
+| Nothing / CMF | ✓ | ✓ | ✓ | |
+| realme, OPPO, OnePlus | ✓ | ✓ | | |
+| boAt | ✓ (one level, as macOS reports it) | | | |
+
+boAt doesn't document its earbuds' control protocol and models use different chips, so boAt earbuds get battery, connect / disconnect and sound output switching only.
 
 Requires macOS 13+.
 

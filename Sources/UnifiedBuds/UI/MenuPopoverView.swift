@@ -48,9 +48,9 @@ struct MenuPopoverView: View {
         }
     }
 
+    /// Touch controls and launch at login live in the settings window (gear button).
     private var footer: some View {
-        HStack(alignment: .top) {
-            LaunchAtLoginControl()
+        HStack {
             Spacer()
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .buttonStyle(.borderless)
@@ -113,7 +113,7 @@ struct NoDevicesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("No supported earbuds connected").font(.headline)
-            Text("Pair QCY, Nothing / CMF or realme earbuds in System Settings › Bluetooth and connect them.")
+            Text("Pair QCY, Nothing / CMF, realme, OnePlus or boAt earbuds in System Settings › Bluetooth and connect them.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -216,7 +216,7 @@ private struct DeviceRow: View {
 
     private var subtitle: String {
         var parts = [connected ? "Connected" : lastUsed]
-        let levels = [("L", device.left), ("R", device.right), ("Case", device.caseBattery)]
+        let levels = [("Battery", device.combined), ("L", device.left), ("R", device.right), ("Case", device.caseBattery)]
             .compactMap { label, value in value.map { "\(label) \($0)%" } }
         if !levels.isEmpty { parts.append(levels.joined(separator: " ")) }
         return parts.joined(separator: " · ")
@@ -234,16 +234,18 @@ struct DeviceControls: View {
     @EnvironmentObject private var manager: BudsManager
     @EnvironmentObject private var audio: AudioOutput
     let device: DeviceState
-    /// The settings window shows touch controls on their own page.
-    var showsTouchControls = true
 
     private var enabled: Bool { device.connection == .connected }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 0) {
-                BatteryCell(label: "L", symbol: "earbuds", battery: device.battery.left)
-                BatteryCell(label: "R", symbol: "earbuds", battery: device.battery.right)
+                if let combined = device.battery.combined, device.battery.left == nil, device.battery.right == nil {
+                    BatteryCell(label: "Earbuds", symbol: "earbuds", battery: combined)
+                } else {
+                    BatteryCell(label: "L", symbol: "earbuds", battery: device.battery.left)
+                    BatteryCell(label: "R", symbol: "earbuds", battery: device.battery.right)
+                }
                 BatteryCell(label: "Case", symbol: "earbuds.case", battery: device.battery.caseBattery,
                             unavailable: !device.reportsCaseBattery)
             }
@@ -312,9 +314,6 @@ struct DeviceControls: View {
                 }
             }
 
-            if showsTouchControls, let touchMap = device.touchMap {
-                TouchControls(map: touchMap) { manager.setTouchAction($0, forGesture: $1) }
-            }
         }
         .disabled(!enabled)
     }

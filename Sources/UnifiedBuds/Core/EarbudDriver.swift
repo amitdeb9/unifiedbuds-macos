@@ -4,6 +4,8 @@ enum Brand: String {
     case qcy = "QCY"
     case nothing = "Nothing"
     case realme = "realme"
+    case oneplus = "OnePlus"
+    case boat = "boAt"
 }
 
 enum ANCMode: String, CaseIterable, Identifiable {
@@ -77,6 +79,8 @@ struct BatteryStatus: Equatable {
     var left: BudBattery?
     var right: BudBattery?
     var caseBattery: BudBattery?
+    /// One level for both buds, from earbuds that only report a single headset battery.
+    var combined: BudBattery?
 }
 
 enum DriverConnectionState: Equatable {
