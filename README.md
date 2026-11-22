@@ -20,6 +20,14 @@ curl -fsSL https://raw.githubusercontent.com/amitdeb9/unifiedbuds-macos/main/ins
 
 It downloads the latest release into `/Applications` and opens it. Allow Bluetooth access when macOS asks.
 
+## GitHub Packages
+
+Every release is also published to GitHub Packages:
+
+```sh
+oras pull ghcr.io/amitdeb9/unifiedbuds:latest   # downloads UnifiedBuds.dmg and the zip
+```
+
 ## Update
 
 ```sh

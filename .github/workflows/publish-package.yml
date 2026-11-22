@@ -1,0 +1,50 @@
+# Publishes each release's DMG and zip to GitHub Packages (ghcr.io) as an OCI
+# artifact, so the repo's Packages section lists "unifiedbuds".
+#
+#   oras pull ghcr.io/amitdeb9/unifiedbuds:latest
+name: Publish package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, e.g. v0.2.0
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: oras-project/setup-oras@v1
+        with:
+          version: 1.2.0
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir dist
+
+      - name: Push to GitHub Packages
+        run: |
+          version="${TAG#v}"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="ghcr.io/$owner/unifiedbuds"
+          echo "${{ github.token }}" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+          cd dist
+          oras push "$image:$version" \
+            --artifact-type application/vnd.unifiedbuds.macos-app \
+            --annotation "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --annotation "org.opencontainers.image.description=UnifiedBuds macOS app: battery, ANC, EQ and touch controls for QCY, Nothing/CMF and realme earbuds" \
+            --annotation "org.opencontainers.image.licenses=MIT" \
+            --annotation "org.opencontainers.image.version=$version" \
+            "UnifiedBuds.dmg:application/x-apple-diskimage" \
+            "UnifiedBuds-$version.zip:application/zip"
+          oras tag "$image:$version" latest
