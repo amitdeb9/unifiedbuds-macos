@@ -34,6 +34,8 @@ final class BudsManager: NSObject, ObservableObject {
     @Published private(set) var history: [KnownDevice] = DeviceHistory.load()
     /// Addresses with a connect or disconnect in flight.
     @Published private(set) var pendingAddresses: Set<String> = []
+    /// QCY devices whose SDP records are being refreshed before a driver is chosen.
+    private var sdpQueried: Set<String> = []
 
     private var drivers: [String: EarbudDriver] = [:]
     /// Bluetooth addresses, parallel to `devices`.
@@ -72,7 +74,10 @@ final class BudsManager: NSObject, ObservableObject {
         }
         // Some buds (JieLi QCY) never push battery changes, so poll.
         batteryTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.drivers.values.forEach { $0.requestBattery() } }
+            // Only connected drivers: sending on a closed channel would mark the device failed.
+            Task { @MainActor in
+                self?.drivers.values.filter { $0.state.connection == .connected }.forEach { $0.requestBattery() }
+            }
         }
         seedHistoryFromPairedDevices()
         refreshConnectedDevices()
@@ -89,6 +94,13 @@ final class BudsManager: NSObject, ObservableObject {
         for device in connected {
             guard let address = device.addressString, drivers[address] == nil,
                   let name = device.name, let brand = Brand.detect(name: name) else { continue }
+            // QCY's JieLi-vs-BLE choice reads the SDP records, which can be missing on a
+            // first connection. Refresh them once; the 2 s poll picks the device up after.
+            if brand == .qcy, (device.services ?? []).isEmpty, !sdpQueried.contains(address) {
+                sdpQueried.insert(address)
+                device.performSDPQuery(nil)
+                continue
+            }
             addDriver(makeDriver(brand: brand, device: device, name: name), address: address)
         }
     }
@@ -146,6 +158,11 @@ final class BudsManager: NSObject, ObservableObject {
         pendingAddresses.insert(address)
         if device.openConnection(self) != kIOReturnSuccess {
             pendingAddresses.remove(address)
+            return
+        }
+        // Don't leave the spinner up if macOS never reports back.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+            self?.pendingAddresses.remove(address)
         }
     }
 

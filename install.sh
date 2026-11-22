@@ -18,8 +18,9 @@ update_only=false
 
 echo "==> Checking the latest UnifiedBuds release..."
 release=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest")
-latest=$(printf '%s' "$release" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*"v\{0,1\}\([^"]*\)"$/\1/')
-url=$(printf '%s' "$release" | grep -o '"browser_download_url": *"[^"]*\.zip"' | head -1 | sed 's/.*"\(https[^"]*\)"$/\1/')
+# `|| true`: with pipefail a grep that finds nothing would exit here silently.
+latest=$(printf '%s' "$release" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*"v\{0,1\}\([^"]*\)"$/\1/' || true)
+url=$(printf '%s' "$release" | grep -o '"browser_download_url": *"[^"]*\.zip"' | head -1 | sed 's/.*"\(https[^"]*\)"$/\1/' || true)
 [ -n "$url" ] || { echo "No release download found for $REPO." >&2; exit 1; }
 
 installed=""

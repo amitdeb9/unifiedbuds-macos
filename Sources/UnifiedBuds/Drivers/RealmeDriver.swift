@@ -128,8 +128,13 @@ final class RealmeDriver: EarbudDriver {
                 shift += 7
                 if byte & 0x80 == 0 { lengthComplete = true; break }
             }
-            guard lengthComplete else { return }
-            guard length >= 7 else { buffer.removeFirst(); continue }
+            if !lengthComplete {
+                // Four continuation bytes is not a length: skip this 0xAA. Otherwise wait for more.
+                if shift >= 28 { buffer.removeFirst(); continue }
+                return
+            }
+            // A garbage length would otherwise wait for megabytes that never arrive.
+            guard length >= 7, length <= 1024 else { buffer.removeFirst(); continue }
             guard buffer.count >= position + length else { return }
             let body = Array(buffer[position..<(position + length)])
             buffer.removeFirst(position + length)

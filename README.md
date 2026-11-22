@@ -4,7 +4,13 @@ A lightweight macOS menu bar app for QCY, Nothing / CMF and realme earbuds: batt
 
 Requires macOS 13+.
 
-## Install
+## Download
+
+**[Download UnifiedBuds.dmg](https://github.com/amitdeb9/unifiedbuds-macos/releases/latest/download/UnifiedBuds.dmg)**, open it and drag UnifiedBuds into Applications.
+
+The app isn't notarized by Apple, so the first time you open it macOS says it can't check it. Click **Done**, then go to System Settings › Privacy & Security, scroll down and click **Open Anyway** next to UnifiedBuds. You only do this once. The Terminal install below skips this step.
+
+## Install from Terminal
 
 Paste this into Terminal:
 
@@ -26,7 +32,7 @@ This does nothing if you already have the latest version.
 
 ```sh
 scripts/build-app.sh          # -> build/UnifiedBuds.app (universal, ad-hoc signed)
-scripts/make-dmg.sh           # -> build/UnifiedBuds.dmg (needs `brew install create-dmg`)
+scripts/make-dmg.sh           # -> build/UnifiedBuds.dmg (drag-to-Applications installer)
 ```
 
 To publish a release (used by the install command), bump `CFBundleShortVersionString` and `CFBundleVersion` in `Resources/Info.plist`, then run `scripts/release.sh`.

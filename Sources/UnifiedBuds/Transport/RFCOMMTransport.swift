@@ -42,6 +42,9 @@ final class RFCOMMTransport: NSObject, IOBluetoothRFCOMMChannelDelegate {
     /// right after a close can otherwise hang with no callback at all.
     private static let openTimeout: TimeInterval = 0.7
     private var openTimer: DispatchWorkItem?
+    /// Set by open(), cleared by close(): late SDP or retry callbacks for a transport
+    /// that was closed in the meantime must not open a channel nobody owns.
+    private var isActive = false
 
     init(device: IOBluetoothDevice, serviceUUIDs: [UUID], fallbackChannel: BluetoothRFCOMMChannelID? = nil) {
         self.device = device
@@ -50,6 +53,7 @@ final class RFCOMMTransport: NSObject, IOBluetoothRFCOMMChannelDelegate {
     }
 
     func open() {
+        isActive = true
         guard let channelID = findChannelID() ?? (didRetrySDP ? fallbackChannel : nil) else {
             if didRetrySDP {
                 onClose?(TransportError.serviceNotFound)
@@ -88,12 +92,13 @@ final class RFCOMMTransport: NSObject, IOBluetoothRFCOMMChannelDelegate {
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.retryDelay) { [weak self] in
-            guard let self, self.channel == nil, self.openAttempts > 0 else { return }
+            guard let self, self.isActive, self.channel == nil, self.openAttempts > 0 else { return }
             self.open()
         }
     }
 
     func close() {
+        isActive = false
         openTimer?.cancel()
         openAttempts = 0
         didRetrySDP = false
@@ -133,6 +138,7 @@ final class RFCOMMTransport: NSObject, IOBluetoothRFCOMMChannelDelegate {
     // MARK: SDP
 
     @objc func sdpQueryComplete(_ device: IOBluetoothDevice!, status: IOReturn) {
+        guard isActive, channel == nil else { return }
         open()
     }
 

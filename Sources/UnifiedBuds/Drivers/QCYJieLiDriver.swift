@@ -106,6 +106,8 @@ final class QCYJieLiDriver: EarbudDriver {
     private let ancLevelDefaultsKey: String
     private let customEQDefaultsKey: String
     private var receivedReply = false
+    /// Bumped on every channel open so a previous connection's retry loop stops.
+    private var connectionGeneration = 0
     /// The touch table exactly as the buds last reported it (`<gesture> <action>` pairs),
     /// including entries the app doesn't show, so writes change only one pair.
     private var touchPairs: [UInt8] = []
@@ -229,12 +231,13 @@ final class QCYJieLiDriver: EarbudDriver {
     private func channelOpened() {
         state.connection = .connected
         receivedReply = false
-        requestInitialState(attempt: 1)
+        connectionGeneration += 1
+        requestInitialState(attempt: 1, generation: connectionGeneration)
     }
 
     /// Right after the Bluetooth link comes up the buds ignore requests for a few
     /// seconds, so repeat the reads until something answers.
-    private func requestInitialState(attempt: Int) {
+    private func requestInitialState(attempt: Int, generation: Int) {
         send(Opcode.targetInfo, payload: [0xFF, 0xFF, 0xFF, 0xFF])
         send(Opcode.custom, payload: [Setting.read, 0x01, Setting.anc])
         send(Opcode.custom, payload: [Setting.read, 0x01, Setting.eq])
@@ -242,8 +245,9 @@ final class QCYJieLiDriver: EarbudDriver {
         requestBattery()
         guard attempt < 25 else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            guard let self, !self.receivedReply, self.state.connection == .connected else { return }
-            self.requestInitialState(attempt: attempt + 1)
+            guard let self, generation == self.connectionGeneration,
+                  !self.receivedReply, self.state.connection == .connected else { return }
+            self.requestInitialState(attempt: attempt + 1, generation: generation)
         }
     }
 

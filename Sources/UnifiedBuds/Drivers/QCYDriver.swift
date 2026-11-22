@@ -24,9 +24,6 @@ final class QCYDriver: NSObject, EarbudDriver {
         case requestData = 0xFE
     }
 
-    /// Manufacturer company IDs QCY puts in advertisements (little-endian on air).
-    private static let companyIDs: Set<UInt16> = [0x521C, 0x522C]
-
     /// Client-side presets written to the 10-band EQ characteristic
     /// (31 Hz … 16 kHz, -8…+8 dB). Gains taken from qcy-control-macos.
     private static let presetGains: [(EQPreset, [Int8])] = [
@@ -164,7 +161,7 @@ final class QCYDriver: NSObject, EarbudDriver {
     private func findPeripheral() {
         guard let central else { return }
         let connected = central.retrieveConnectedPeripherals(withServices: [UUIDs.service])
-        if let match = connected.first(where: { namesMatch($0.name) }) ?? connected.first {
+        if let match = connected.first(where: { namesMatch($0.name) }) {
             attach(match)
             return
         }
@@ -234,12 +231,8 @@ extension QCYDriver: CBCentralManagerDelegate, CBPeripheralDelegate {
         MainActor.assumeIsolated {
             guard self.peripheral == nil else { return }
             let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? peripheral.name
-            var isQCY = false
-            if let data = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data, data.count >= 2 {
-                let company = UInt16(data[data.startIndex]) | UInt16(data[data.startIndex + 1]) << 8
-                isQCY = Self.companyIDs.contains(company)
-            }
-            if namesMatch(localName) || isQCY {
+            // Match by name only: a QCY company ID alone could be someone else's buds nearby.
+            if namesMatch(localName) {
                 attach(peripheral)
             }
         }

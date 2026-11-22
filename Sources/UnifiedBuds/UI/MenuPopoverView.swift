@@ -124,6 +124,8 @@ struct NoDevicesView: View {
 /// Launch-at-login checkbox that shows the real login-item state, including when
 /// macOS still needs the user's approval.
 struct LaunchAtLoginControl: View {
+    /// The menu bar panel uses small text; the settings window uses the system size.
+    var compact = true
     @State private var enabled = LaunchAtLogin.isEnabled || LaunchAtLogin.needsApproval
     @State private var needsApproval = LaunchAtLogin.needsApproval
     @State private var error: String?
@@ -138,7 +140,7 @@ struct LaunchAtLoginControl: View {
                 }
             ))
             .toggleStyle(.checkbox)
-            .font(.caption)
+            .font(compact ? .caption : .body)
             if needsApproval {
                 HStack(spacing: 4) {
                     Text("Allow UnifiedBuds in Login Items to finish.")
@@ -382,12 +384,14 @@ struct TouchControls: View {
 
 /// Bass / mid / treble sliders for the Custom EQ preset. Changes are sent when a
 /// slider is released, not on every step.
-private struct CustomEQSliders: View {
+struct CustomEQSliders: View {
     @State private var eq: CustomEQ
+    let initial: CustomEQ
     let apply: (CustomEQ) -> Void
 
     init(initial: CustomEQ, apply: @escaping (CustomEQ) -> Void) {
         _eq = State(initialValue: initial)
+        self.initial = initial
         self.apply = apply
     }
 
@@ -398,6 +402,8 @@ private struct CustomEQSliders: View {
             row("Treble", \.treble, range: -6...8)
         }
         .padding(.top, 4)
+        // Another window or a device switch can change the values; don't keep stale ones.
+        .onChange(of: initial) { eq = $0 }
     }
 
     private func row(_ title: String, _ keyPath: WritableKeyPath<CustomEQ, Int>, range: ClosedRange<Int>) -> some View {
@@ -450,7 +456,7 @@ private struct BatteryCell: View {
 }
 
 /// Hides the keyboard-focus box macOS draws around the first button in a window.
-private struct NoFocusRing: ViewModifier {
+struct NoFocusRing: ViewModifier {
     func body(content: Content) -> some View {
         if #available(macOS 14.0, *) {
             content.focusEffectDisabled()

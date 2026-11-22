@@ -55,11 +55,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Login-item launches stay quiet in the menu bar.
-        let event = NSAppleEventManager.shared().currentAppleEvent
-        let launchedAtLogin = event?.eventID == kAEOpenApplication
-            && event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
-        if !launchedAtLogin { showWindow() }
+        // Login-item launches stay quiet in the menu bar; any other launch (Finder,
+        // Launchpad, `open`) shows the window. SwiftUI menu bar apps don't receive the
+        // launch Apple event, so a login launch is recognised by timing instead.
+        if !launchedAsLoginItem { showWindow() }
+    }
+
+    private var launchedAsLoginItem: Bool {
+        guard LaunchAtLogin.isEnabled,
+              let loginWindow = NSRunningApplication.runningApplications(
+                withBundleIdentifier: "com.apple.loginwindow").first?.launchDate else { return false }
+        return Date().timeIntervalSince(loginWindow) < 120
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
