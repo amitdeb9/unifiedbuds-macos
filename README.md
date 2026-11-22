@@ -49,7 +49,7 @@ This does nothing if you already have the latest version.
 ## Build
 
 ```sh
-scripts/build-app.sh          # -> build/UnifiedBuds.app (universal, ad-hoc signed)
+scripts/build-app.sh          # -> build/UnifiedBuds.noindex/UnifiedBuds.app (universal, ad-hoc signed)
 scripts/make-dmg.sh           # -> build/UnifiedBuds.dmg (drag-to-Applications installer)
 ```
 

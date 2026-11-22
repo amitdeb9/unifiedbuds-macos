@@ -27,7 +27,7 @@ fi
 
 scripts/build-app.sh
 rm -f "$ZIP"
-ditto -c -k --keepParent build/UnifiedBuds.app "$ZIP"
+ditto -c -k --keepParent build/UnifiedBuds.noindex/UnifiedBuds.app "$ZIP"
 # The DMG keeps a fixed name so .../releases/latest/download/UnifiedBuds.dmg always works.
 scripts/make-dmg.sh
 

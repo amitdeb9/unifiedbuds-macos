@@ -1,12 +1,14 @@
 #!/bin/bash
-# Builds build/UnifiedBuds.app. Set SIGN_IDENTITY to a "Developer ID Application"
+# Builds build/UnifiedBuds.noindex/UnifiedBuds.app. Set SIGN_IDENTITY to a "Developer ID Application"
 # identity for distribution; defaults to ad-hoc signing for local use.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG="${CONFIG:-release}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
-APP="build/UnifiedBuds.app"
+# Spotlight skips folders ending in .noindex, so the dev build doesn't show up in
+# Launchpad next to the installed app.
+APP="build/UnifiedBuds.noindex/UnifiedBuds.app"
 
 swift build -c "$CONFIG" --arch arm64 --arch x86_64
 BIN="$(swift build -c "$CONFIG" --arch arm64 --arch x86_64 --show-bin-path)/UnifiedBuds"
