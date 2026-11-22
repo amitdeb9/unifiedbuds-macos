@@ -50,6 +50,10 @@ final class QCYDriver: NSObject, EarbudDriver {
     init(name: String) {
         state = DeviceState(name: name, brand: .qcy)
         state.supportedANCModes = [.off, .transparency, .noiseCancellation, .adaptive]
+        state.supportsGamingMode = true
+        state.supportsInEarDetection = true
+        state.supportsMultipoint = true
+        state.supportsFindMyBuds = true
         super.init()
     }
 

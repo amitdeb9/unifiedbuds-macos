@@ -6,7 +6,6 @@ import SwiftUI
 struct MainWindowView: View {
     enum Page: String, CaseIterable, Identifiable {
         case earbuds = "Earbuds"
-        case touch = "Touch Controls"
         case devices = "Devices"
         case general = "General"
         case about = "About"
@@ -16,7 +15,6 @@ struct MainWindowView: View {
         var symbol: String {
             switch self {
             case .earbuds: return "earbuds"
-            case .touch: return "hand.tap"
             case .devices: return "list.bullet"
             case .general: return "gearshape"
             case .about: return "info.circle"
@@ -27,23 +25,14 @@ struct MainWindowView: View {
     @EnvironmentObject private var manager: BudsManager
     @State private var page: Page? = .earbuds
 
-    /// Automatically hides Touch Controls from the sidebar if unsupported or not loaded.
     private var visiblePages: [Page] {
-        var pages: [Page] = [.earbuds]
-        if let device = manager.selected, let map = device.touchMap, !map.isEmpty {
-            pages.append(.touch)
-        }
-        pages.append(contentsOf: [.devices, .general, .about])
-        return pages
+        Page.allCases
     }
 
     var body: some View {
         NavigationSplitView {
             List(visiblePages, selection: Binding(
-                get: {
-                    if let p = page, visiblePages.contains(p) { return p }
-                    return .earbuds
-                },
+                get: { page ?? .earbuds },
                 set: { page = $0 }
             )) { p in
                 Label(p.rawValue, systemImage: p.symbol).tag(p)
@@ -53,7 +42,6 @@ struct MainWindowView: View {
             Group {
                 switch page ?? .earbuds {
                 case .earbuds: EarbudsPage()
-                case .touch: TouchPage()
                 case .devices: DevicesPage()
                 case .general: GeneralPage()
                 case .about: AboutPage()
@@ -83,65 +71,70 @@ private struct EarbudsPage: View {
                 if let buds = audio.device(named: device.name), let mac = audio.builtInDevice {
                     Section("Sound Output") { soundOutput(buds: buds, mac: mac) }
                 }
-                Section("Sleep Timer") {
-                    sleepTimerControls
-                }
-                if device.supportsInEarDetection || device.supportsMultipoint || device.supportsGamingMode || device.supportsFindMyBuds {
-                    Section("Features") {
-                        if device.supportsGamingMode {
-                            Toggle("Low-Latency / Gaming Mode", isOn: Binding(
-                                get: { device.gamingModeEnabled },
-                                set: { manager.setGamingMode($0) }
-                            ))
-                        }
-                        if device.supportsInEarDetection {
-                            Toggle("In-Ear Wear Detection", isOn: Binding(
-                                get: { device.inEarDetectionEnabled },
-                                set: { manager.setInEarDetection($0) }
-                            ))
-                        }
-                        if device.supportsMultipoint {
-                            Toggle("Dual-Device Multipoint Connection", isOn: Binding(
-                                get: { device.multipointEnabled },
-                                set: { manager.setMultipoint($0) }
-                            ))
-                        }
-                        if device.supportsFindMyBuds {
-                            HStack {
-                                Text("Find My Buds")
-                                Spacer()
-                                Button {
-                                    manager.ringBud(left: true, start: !device.isRingingLeft)
-                                } label: {
-                                    Label(device.isRingingLeft ? "Stop Left" : "Ring Left",
-                                          systemImage: device.isRingingLeft ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                                }
-                                .controlSize(.small)
-                                .tint(device.isRingingLeft ? .red : .accentColor)
-                                Button {
-                                    manager.ringBud(left: false, start: !device.isRingingRight)
-                                } label: {
-                                    Label(device.isRingingRight ? "Stop Right" : "Ring Right",
-                                          systemImage: device.isRingingRight ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                                }
-                                .controlSize(.small)
-                                .tint(device.isRingingRight ? .red : .accentColor)
-                            }
-                        }
-                    }
-                }
+
                 if !device.supportedANCModes.isEmpty {
                     Section("Noise Control") { noiseControl(device) }
                 }
+
+                Section("Features") {
+                    Toggle("Low-Latency / Gaming Mode", isOn: Binding(
+                        get: { device.gamingModeEnabled },
+                        set: { manager.setGamingMode($0) }
+                    ))
+                    .toggleStyle(.switch)
+
+                    Toggle("In-Ear Wear Detection", isOn: Binding(
+                        get: { device.inEarDetectionEnabled },
+                        set: { manager.setInEarDetection($0) }
+                    ))
+                    .toggleStyle(.switch)
+
+                    Toggle("Dual-Device Multipoint Connection", isOn: Binding(
+                        get: { device.multipointEnabled },
+                        set: { manager.setMultipoint($0) }
+                    ))
+                    .toggleStyle(.switch)
+
+                    HStack {
+                        Text("Find My Buds")
+                        Spacer()
+                        Button {
+                            manager.ringBud(left: true, start: !device.isRingingLeft)
+                        } label: {
+                            Label(device.isRingingLeft ? "Stop Left" : "Ring Left",
+                                  systemImage: device.isRingingLeft ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        }
+                        .controlSize(.small)
+                        .tint(device.isRingingLeft ? .red : .accentColor)
+
+                        Button {
+                            manager.ringBud(left: false, start: !device.isRingingRight)
+                        } label: {
+                            Label(device.isRingingRight ? "Stop Right" : "Ring Right",
+                                  systemImage: device.isRingingRight ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        }
+                        .controlSize(.small)
+                        .tint(device.isRingingRight ? .red : .accentColor)
+                    }
+                }
+
                 if !device.supportedEQPresets.isEmpty {
                     Section("Equalizer") { equalizer(device) }
                 }
-                if let map = device.touchMap, !map.isEmpty {
-                    Section("Touch Controls") {
+
+                Section("Touch Controls") {
+                    if let map = device.touchMap, !map.isEmpty {
                         TouchControls(map: map, collapsible: false) { action, gesture in
                             manager.setTouchAction(action, forGesture: gesture)
                         }
+                    } else {
+                        Text("Touch controls are managed by hardware presets on this model.")
+                            .foregroundStyle(.secondary)
                     }
+                }
+
+                Section("Sleep Timer") {
+                    sleepTimerControls
                 }
             }
         } else {
@@ -348,67 +341,6 @@ private struct BatteryRow: View {
         guard let battery else { return .secondary }
         if battery.charging { return .green }
         return battery.percent <= 15 ? .red : .accentColor
-    }
-}
-
-// MARK: Touch controls
-
-private struct TouchPage: View {
-    @EnvironmentObject private var manager: BudsManager
-
-    var body: some View {
-        Form {
-            if let device = manager.selected, let map = device.touchMap, !map.isEmpty {
-                let enabled = device.connection == .connected
-                Section {
-                    ForEach(TouchGesture.allCases) { gesture in
-                        actionPicker(gesture.name, gesture: gesture.leftID, map: map)
-                    }
-                } header: {
-                    Label("Left Earbud", systemImage: "l.circle")
-                } footer: {
-                    Text("Changes are saved on the \(device.name) and work with any phone or computer.")
-                }
-                .disabled(!enabled)
-                Section {
-                    ForEach(TouchGesture.allCases) { gesture in
-                        actionPicker(gesture.name, gesture: gesture.rightID, map: map)
-                    }
-                } header: {
-                    Label("Right Earbud", systemImage: "r.circle")
-                }
-                .disabled(!enabled)
-            } else if let device = manager.selected, device.connection == .connecting {
-                Section {
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text("Loading touch controls from \(device.name)…").foregroundStyle(.secondary)
-                    }
-                }
-            } else {
-                Section {
-                    Text(manager.selected == nil
-                         ? "Connect your earbuds to change their touch controls."
-                         : "Touch controls are not supported on this model.")
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    private func actionPicker(_ title: String, gesture: UInt8, map: [UInt8: UInt8]) -> some View {
-        Picker(title, selection: Binding(
-            get: { map[gesture] ?? 0 },
-            set: { manager.setTouchAction($0, forGesture: gesture) }
-        )) {
-            ForEach(TouchAction.allCases) { action in
-                Text(action.name).tag(action.rawValue)
-            }
-            // Keep a value the app doesn't know selectable rather than showing it as None.
-            if let current = map[gesture], TouchAction(rawValue: current) == nil {
-                Text("Other (\(current))").tag(current)
-            }
-        }
     }
 }
 

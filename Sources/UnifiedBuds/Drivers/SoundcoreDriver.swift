@@ -24,6 +24,7 @@ final class SoundcoreDriver: EarbudDriver {
             state.supportsGamingMode = true
             state.supportsInEarDetection = true
             state.supportsMultipoint = true
+            state.supportsFindMyBuds = true
             state.supportedEQPresets = [
                 EQPreset(id: 0, name: "Soundcore Signature"),
                 EQPreset(id: 1, name: "Acoustic"),

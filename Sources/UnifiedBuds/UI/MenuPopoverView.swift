@@ -391,51 +391,6 @@ struct DeviceControls: View {
                     }
                 }
             }
-
-            // Features Card (Cleanly hidden if unsupported)
-            if device.supportsGamingMode || device.supportsInEarDetection || device.supportsMultipoint || device.supportsFindMyBuds {
-                GlassCard {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("FEATURES")
-                            .font(.system(size: 9, weight: .bold, design: .rounded))
-                            .foregroundStyle(.secondary)
-
-                        if device.supportsGamingMode {
-                            Toggle("Low-Latency / Gaming Mode", isOn: Binding(
-                                get: { device.gamingModeEnabled },
-                                set: { manager.setGamingMode($0) }
-                            ))
-                            .font(.caption)
-                        }
-
-                        if device.supportsFindMyBuds {
-                            HStack {
-                                Text("Find My Buds").font(.caption)
-                                Spacer()
-                                Button {
-                                    manager.ringBud(left: true, start: !device.isRingingLeft)
-                                } label: {
-                                    Label(device.isRingingLeft ? "Stop L" : "Ring L",
-                                          systemImage: device.isRingingLeft ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                                        .font(.caption2)
-                                }
-                                .controlSize(.small)
-                                .tint(device.isRingingLeft ? .red : .accentColor)
-
-                                Button {
-                                    manager.ringBud(left: false, start: !device.isRingingRight)
-                                } label: {
-                                    Label(device.isRingingRight ? "Stop R" : "Ring R",
-                                          systemImage: device.isRingingRight ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                                        .font(.caption2)
-                                }
-                                .controlSize(.small)
-                                .tint(device.isRingingRight ? .red : .accentColor)
-                            }
-                        }
-                    }
-                }
-            }
         }
         .disabled(!enabled)
     }

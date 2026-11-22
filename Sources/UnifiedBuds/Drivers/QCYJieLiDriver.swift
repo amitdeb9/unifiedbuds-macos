@@ -147,6 +147,7 @@ final class QCYJieLiDriver: EarbudDriver {
         state.reportsCaseBattery = false
         state.supportsGamingMode = true
         state.supportsInEarDetection = true
+        state.supportsMultipoint = true
         state.supportsFindMyBuds = true
         // EQ presets appear once the buds report the factory band layout (see handleEQ).
 
